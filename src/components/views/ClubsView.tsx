@@ -10,7 +10,11 @@ import {
   Plus
 } from 'lucide-react';
 
-export const ClubsView: React.FC = () => {
+interface ClubsViewProps {
+  onSelectClub?: (clubId: string) => void;
+}
+
+export const ClubsView: React.FC<ClubsViewProps> = ({ onSelectClub }) => {
   const { clubs, organization, players } = useApp();
 
   return (
@@ -21,7 +25,7 @@ export const ClubsView: React.FC = () => {
             <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold tracking-wider uppercase">
               Club Multi-Tenant Directory
             </span>
-            <span className="text-xs text-neutral-400">Parent Federation: {organization.name}</span>
+            <span className="text-xs text-neutral-400">Parent Federation: {organization?.name || 'SportOS Federation'}</span>
           </div>
           <h1 className="text-xl font-bold text-neutral-900 mt-1">Registered Sports Clubs & Academies</h1>
           <p className="text-xs text-neutral-500 mt-0.5">
@@ -34,11 +38,15 @@ export const ClubsView: React.FC = () => {
         {clubs.map(c => {
           const clubPlayerCount = players.filter(p => p.clubId === c.id).length;
           return (
-            <div key={c.id} className="bg-white rounded-2xl border border-neutral-200/80 p-5 shadow-xs flex flex-col justify-between">
+            <div
+              key={c.id}
+              onClick={() => onSelectClub && onSelectClub(c.id)}
+              className="bg-white rounded-2xl border border-neutral-200/80 p-5 shadow-xs hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer"
+            >
               <div>
                 <div className="flex items-start justify-between pb-3 border-b border-neutral-100">
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-900">{c.name}</h3>
+                    <h3 className="text-sm font-bold text-neutral-900 hover:text-indigo-600 transition-colors">{c.name}</h3>
                     <p className="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
                       <MapPin className="w-3.5 h-3.5 text-neutral-400" />
                       <span>{c.city}</span>
@@ -70,7 +78,7 @@ export const ClubsView: React.FC = () => {
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Verified Tenant</span>
                 </span>
-                <span className="text-[11px] text-neutral-400">Created 2024</span>
+                <span className="text-indigo-600 font-bold hover:underline">Open Workspace →</span>
               </div>
             </div>
           );

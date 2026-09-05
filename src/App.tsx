@@ -19,6 +19,10 @@ import { RefereeDashboard } from './components/dashboards/RefereeDashboard';
 import { AssignmentsBoard } from './components/tournament/AssignmentsBoard';
 import { DrawsView } from './components/tournament/DrawsView';
 import { LiveScoringView } from './components/tournament/LiveScoringView';
+import { TournamentsView } from './components/views/TournamentsView';
+import { TournamentWorkspace } from './components/tournament/TournamentWorkspace';
+import { ClubWorkspace } from './components/club/ClubWorkspace';
+import { PlayerProfileView } from './components/player/PlayerProfileView';
 import { PlayersView } from './components/views/PlayersView';
 import { AttendanceView } from './components/views/AttendanceView';
 import { BatchesView } from './components/views/BatchesView';
@@ -37,6 +41,38 @@ function SportOSApp() {
   const [isClaimOpen, setIsClaimOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [scoringMatchId, setScoringMatchId] = useState<string | undefined>(undefined);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | undefined>(undefined);
+  const [selectedClubId, setSelectedClubId] = useState<string | undefined>(undefined);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | undefined>(undefined);
+  const [tournamentInitialTab, setTournamentInitialTab] = useState<string | undefined>('overview');
+
+  const handleSelectTournament = (id: string, initialTab?: string) => {
+    setSelectedTournamentId(id);
+    setActiveTournamentId(id);
+    setTournamentInitialTab(initialTab || 'overview');
+    setCurrentView('tournament_detail');
+  };
+
+  const handleSelectClub = (id: string) => {
+    setSelectedClubId(id);
+    setCurrentView('club_detail');
+  };
+
+  const handleSelectPlayer = (id: string) => {
+    setSelectedPlayerId(id);
+    setCurrentView('player_detail');
+  };
+
+  const handleOpenScoring = (matchId?: string) => {
+    if (matchId) {
+      setScoringMatchId(matchId);
+    }
+    setCurrentView('live_scoring');
+  };
+
+  const handleOpenTvArena = () => {
+    setCurrentView('tv_arena');
+  };
 
   // If in TV Arena Mode
   if (currentView === 'tv_arena') {
@@ -74,13 +110,11 @@ function SportOSApp() {
 
   const handleSelectEntity = (type: 'PLAYER' | 'TOURNAMENT' | 'MATCH', id: string) => {
     if (type === 'PLAYER') {
-      setCurrentView('players');
+      handleSelectPlayer(id);
     } else if (type === 'TOURNAMENT') {
-      setActiveTournamentId(id);
-      setCurrentView('dashboard');
+      handleSelectTournament(id);
     } else if (type === 'MATCH') {
-      setScoringMatchId(id);
-      setCurrentView('live_scoring');
+      handleOpenScoring(id);
     }
   };
 
@@ -162,8 +196,58 @@ function SportOSApp() {
           />
         );
 
+      case 'tournaments':
+        return (
+          <TournamentsView
+            onSelectTournament={handleSelectTournament}
+            onOpenWizard={() => setIsWizardOpen(true)}
+            onOpenTvArena={handleOpenTvArena}
+            onOpenScoring={handleOpenScoring}
+          />
+        );
+
+      case 'tournament_detail':
+        return (
+          <TournamentWorkspace
+            tournamentId={selectedTournamentId}
+            initialTab={tournamentInitialTab}
+            onBack={() => setCurrentView('tournaments')}
+            onSelectPlayer={handleSelectPlayer}
+            onSelectClub={handleSelectClub}
+            onOpenScoring={handleOpenScoring}
+            onOpenTvArena={handleOpenTvArena}
+          />
+        );
+
+      case 'club_detail':
+        return (
+          <ClubWorkspace
+            clubId={selectedClubId || 'club-1'}
+            onBack={() => setCurrentView('clubs')}
+            onSelectPlayer={handleSelectPlayer}
+            onSelectTournament={handleSelectTournament}
+          />
+        );
+
+      case 'player_detail':
+        return (
+          <PlayerProfileView
+            playerId={selectedPlayerId || 'p-1'}
+            onBack={() => setCurrentView('players')}
+            onSelectClub={handleSelectClub}
+            onSelectTournament={handleSelectTournament}
+            onSelectPlayer={handleSelectPlayer}
+            onSelectMatch={handleOpenScoring}
+          />
+        );
+
       case 'players':
-        return <PlayersView onOpenClaimModal={() => setIsClaimOpen(true)} />;
+        return (
+          <PlayersView
+            onOpenClaimModal={() => setIsClaimOpen(true)}
+            onSelectPlayer={handleSelectPlayer}
+          />
+        );
 
       case 'attendance':
         return <AttendanceView />;
@@ -173,7 +257,7 @@ function SportOSApp() {
 
       case 'clubs':
       case 'organizations':
-        return <ClubsView />;
+        return <ClubsView onSelectClub={handleSelectClub} />;
 
       case 'memberships':
       case 'payments':

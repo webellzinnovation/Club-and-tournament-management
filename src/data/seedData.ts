@@ -16,7 +16,11 @@ import {
   Announcement,
   WebNotification,
   AuditLog,
-  UserAccount
+  UserAccount,
+  PlayerClubMembership,
+  TrainingSession,
+  TournamentRegistration,
+  TournamentStaff
 } from '../types';
 
 export const SEED_USERS: UserAccount[] = [
@@ -1598,5 +1602,231 @@ export const SEED_AUDIT_LOGS: AuditLog[] = [
     entityId: 'org-1',
     details: 'Upgraded Tamil Nadu Table Tennis & Sports Federation to Enterprise Tier.',
     timestamp: '2025-01-15T09:00:00Z'
+  }
+];
+
+export const SEED_PLAYER_CLUB_MEMBERSHIPS: PlayerClubMembership[] = [
+  {
+    id: 'pcm-1',
+    playerId: 'p-1',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    organizationId: 'org-1',
+    status: 'ACTIVE',
+    role: 'CAPTAIN',
+    joinedAt: '2024-02-10'
+  },
+  {
+    id: 'pcm-2',
+    playerId: 'p-2',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    organizationId: 'org-1',
+    status: 'ACTIVE',
+    role: 'PLAYER',
+    joinedAt: '2024-03-01'
+  },
+  {
+    id: 'pcm-3',
+    playerId: 'p-2',
+    clubId: 'club-2',
+    clubName: 'Marina Smashers Club',
+    organizationId: 'org-1',
+    status: 'ACTIVE',
+    role: 'TRAINEE',
+    joinedAt: '2024-05-15'
+  },
+  {
+    id: 'pcm-4',
+    playerId: 'p-3',
+    clubId: 'club-2',
+    clubName: 'Marina Smashers Club',
+    organizationId: 'org-1',
+    status: 'ACTIVE',
+    role: 'PLAYER',
+    joinedAt: '2024-01-18'
+  },
+  {
+    id: 'pcm-5',
+    playerId: 'p-4',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    organizationId: 'org-1',
+    status: 'ACTIVE',
+    role: 'PLAYER',
+    joinedAt: '2024-04-10'
+  },
+  {
+    id: 'pcm-6',
+    playerId: 'p-5',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    organizationId: 'org-1',
+    status: 'ACTIVE',
+    role: 'PLAYER',
+    joinedAt: '2024-03-20'
+  }
+];
+
+export const SEED_TRAINING_SESSIONS: TrainingSession[] = [
+  {
+    id: 'ts-1',
+    batchId: 'batch-1',
+    batchName: 'Morning Elite TT Batch',
+    clubId: 'club-1',
+    coachId: 'coach-1',
+    coachName: 'Coach Rajesh Kannan',
+    date: '2026-09-06',
+    startTime: '06:00 AM',
+    endTime: '08:00 AM',
+    focusArea: 'Forehand Topspin vs Backspin & Third-Ball Attack Drills',
+    status: 'SCHEDULED',
+    attendanceCount: 5
+  },
+  {
+    id: 'ts-2',
+    batchId: 'batch-1',
+    batchName: 'Morning Elite TT Batch',
+    clubId: 'club-1',
+    coachId: 'coach-1',
+    coachName: 'Coach Rajesh Kannan',
+    date: '2026-09-05',
+    startTime: '06:00 AM',
+    endTime: '08:00 AM',
+    focusArea: 'Footwork Transition & Middle-Table Defense Drills',
+    status: 'COMPLETED',
+    attendanceCount: 5
+  },
+  {
+    id: 'ts-3',
+    batchId: 'batch-2',
+    batchName: 'Evening Junior Development',
+    clubId: 'club-1',
+    coachId: 'coach-2',
+    coachName: 'Coach Priya Sundaram',
+    date: '2026-09-06',
+    startTime: '04:30 PM',
+    endTime: '06:30 PM',
+    focusArea: 'Basic Push, Block, and Consistent Rally Length',
+    status: 'SCHEDULED',
+    attendanceCount: 4
+  }
+];
+
+export const SEED_REGISTRATIONS: TournamentRegistration[] = [
+  {
+    id: 'reg-1',
+    tournamentId: 't-1',
+    eventId: 'evt-1',
+    eventName: "Men's Singles Open",
+    playerId: 'p-1',
+    playerName: 'Arjun Kumar',
+    playerPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    type: 'INDIVIDUAL',
+    source: 'CLUB_NOMINATION',
+    status: 'FINALIZED',
+    seed: 1,
+    feePaid: true,
+    registeredAt: '2026-08-25'
+  },
+  {
+    id: 'reg-2',
+    tournamentId: 't-1',
+    eventId: 'evt-1',
+    eventName: "Men's Singles Open",
+    playerId: 'p-2',
+    playerName: 'Rahul Kumar',
+    playerPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    type: 'INDIVIDUAL',
+    source: 'PLAYER_SELF',
+    status: 'FINALIZED',
+    seed: 2,
+    feePaid: true,
+    registeredAt: '2026-08-26'
+  },
+  {
+    id: 'reg-3',
+    tournamentId: 't-1',
+    eventId: 'evt-1',
+    eventName: "Men's Singles Open",
+    playerId: 'p-3',
+    playerName: 'Karthik Subramanian',
+    clubId: 'club-2',
+    clubName: 'Marina Smashers Club',
+    type: 'INDIVIDUAL',
+    source: 'CLUB_NOMINATION',
+    status: 'FINALIZED',
+    seed: 3,
+    feePaid: true,
+    registeredAt: '2026-08-27'
+  },
+  {
+    id: 'reg-4',
+    tournamentId: 't-1',
+    eventId: 'evt-1',
+    eventName: "Men's Singles Open",
+    playerId: 'p-4',
+    playerName: 'Aditya Narayan',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    type: 'INDIVIDUAL',
+    source: 'ORGANIZER_INVITE',
+    status: 'FINALIZED',
+    seed: 4,
+    feePaid: true,
+    registeredAt: '2026-08-28'
+  },
+  {
+    id: 'reg-5',
+    tournamentId: 't-2',
+    eventId: 'evt-4',
+    eventName: "Men's Singles Badminton",
+    playerId: 'p-2',
+    playerName: 'Rahul Kumar',
+    playerPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    type: 'INDIVIDUAL',
+    source: 'PLAYER_SELF',
+    status: 'APPROVED',
+    feePaid: true,
+    registeredAt: '2026-09-02'
+  },
+  {
+    id: 'reg-6',
+    tournamentId: 't-2',
+    eventId: 'evt-4',
+    eventName: "Men's Singles Badminton",
+    playerId: 'p-1',
+    playerName: 'Arjun Kumar',
+    clubId: 'club-1',
+    clubName: 'Chennai TT Academy',
+    type: 'INDIVIDUAL',
+    source: 'ORGANIZER_INVITE',
+    status: 'PENDING',
+    feePaid: false,
+    registeredAt: '2026-09-04'
+  }
+];
+
+export const SEED_TOURNAMENT_STAFF: TournamentStaff[] = [
+  {
+    id: 'st-1',
+    tournamentId: 't-1',
+    userId: 'user-org-dir',
+    name: 'Anand Natarajan',
+    role: 'OWNER'
+  },
+  {
+    id: 'st-2',
+    tournamentId: 't-1',
+    userId: 'user-ref-suresh',
+    name: 'Suresh Iyer',
+    role: 'REFEREE',
+    assignedEvents: ['evt-1', 'evt-2']
   }
 ];

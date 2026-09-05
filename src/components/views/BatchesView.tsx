@@ -20,7 +20,7 @@ export const BatchesView: React.FC = () => {
             <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold tracking-wider uppercase">
               Training Schedule
             </span>
-            <span className="text-xs text-neutral-400">{activeClub.name}</span>
+            <span className="text-xs text-neutral-400">{activeClub?.name || 'Club Academy'}</span>
           </div>
           <h1 className="text-xl font-bold text-neutral-900 mt-1">Batches, Squads & Timings</h1>
           <p className="text-xs text-neutral-500 mt-0.5">

@@ -64,7 +64,7 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({ onNavigate, onOpenPr
       if (myMatches.length > 0) {
         return myMatches.slice(0, 3).map(m => ({
           time: m.scheduledTime || '14:30',
-          title: `Match vs ${m.player1?.id === currentUser?.linkedPlayerId ? m.player2?.name || 'TBD' : m.player1?.name}`,
+          title: `Match vs ${m.player1?.id === currentUser?.linkedPlayerId ? m.player2?.name || 'TBD' : m.player1?.name || 'TBD'}`,
           location: m.resourceName || 'Court 1',
           status: m.status
         }));
@@ -81,7 +81,7 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({ onNavigate, onOpenPr
         return clubBatches.slice(0, 3).map(b => ({
           time: b.startTime,
           title: `${b.name}`,
-          location: `${b.days.slice(0, 2).join(', ')} • ${activeClub?.name}`,
+          location: `${b.days.slice(0, 2).join(', ')} • ${activeClub?.name || 'Club Academy'}`,
           status: 'UPCOMING'
         }));
       }
@@ -96,7 +96,7 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({ onNavigate, onOpenPr
       if (assigned.length > 0) {
         return assigned.slice(0, 3).map(m => ({
           time: m.scheduledTime || '12:00',
-          title: `${m.player1?.name} vs ${m.player2?.name}`,
+          title: `${m.player1?.name || 'TBD'} vs ${m.player2?.name || 'TBD'}`,
           location: m.resourceName || 'Assigned Table',
           status: m.status
         }));

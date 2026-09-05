@@ -69,13 +69,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'players', label: 'My Students', icon: Users },
           { id: 'batches', label: 'Training Batches', icon: CalendarDays },
           { id: 'attendance', label: 'Mark Attendance', icon: ClipboardList },
-          { id: 'tournaments', label: 'Competition Results', icon: Trophy }
+          { id: 'clubs', label: 'Club Facility', icon: Grid2X2 },
+          { id: 'tournaments', label: 'Tournaments', icon: Trophy }
         ];
 
       case 'PLAYER':
         return [
           { id: 'dashboard', label: 'Athlete Home', icon: LayoutDashboard },
-          { id: 'my_matches', label: 'My Matches', icon: CalendarDays },
+          { id: 'tournaments', label: 'Browse Tournaments', icon: Trophy },
+          { id: 'clubs', label: 'Club Hub', icon: Grid2X2 },
           { id: 'standings', label: 'Points & Rank', icon: Award },
           { id: 'memberships', label: 'Club Membership', icon: CreditCard },
           { id: 'announcements', label: 'Club Notices', icon: Megaphone }
@@ -92,16 +94,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       default:
         return [
           { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+          { id: 'tournaments', label: 'Tournaments Hub', icon: Trophy },
           {
             id: 'assignments',
             label: 'Assignments Board',
             icon: Grid2X2,
             badge: schedulingConflicts.length ? `${schedulingConflicts.length}` : undefined
           },
-          { id: 'draws', label: 'Draws & Brackets', icon: Trophy },
+          { id: 'draws', label: 'Draws & Brackets', icon: FolderKanban },
           { id: 'live_scoring', label: 'Live Scoring', icon: Activity },
           { id: 'standings', label: 'Points Table', icon: Award },
           { id: 'players', label: 'Participants', icon: Users },
+          { id: 'clubs', label: 'Partner Clubs', icon: Grid2X2 },
           { id: 'announcements', label: 'Announcements', icon: Megaphone },
           { id: 'audit_logs', label: 'Operations Audit', icon: History }
         ];

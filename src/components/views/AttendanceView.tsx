@@ -32,10 +32,12 @@ export const AttendanceView: React.FC = () => {
   };
 
   const handleStatusChange = (playerId: string, status: AttendanceStatus) => {
+    if (!currentBatch) return;
     markAttendance(currentBatch.id, playerId, selectedDate, status);
   };
 
   const handleMarkAllPresent = () => {
+    if (!currentBatch) return;
     batchPlayers.forEach(p => {
       markAttendance(currentBatch.id, p.id, selectedDate, 'PRESENT');
     });
@@ -121,16 +123,25 @@ export const AttendanceView: React.FC = () => {
       </div>
 
       {/* Athlete Matrix Table */}
-      <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-neutral-100 bg-neutral-50/60 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-neutral-500" />
-            <span className="text-xs font-bold text-neutral-900">
-              {currentBatch.name} — Coach: {currentBatch.coachName} ({batchPlayers.length} Athletes)
-            </span>
-          </div>
-          <span className="text-xs text-neutral-400">Timing: {currentBatch.timing}</span>
+      {!currentBatch ? (
+        <div className="bg-white rounded-2xl border border-neutral-200/80 p-12 text-center shadow-xs">
+          <Users className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
+          <h3 className="text-sm font-bold text-neutral-800">No Training Squads Found</h3>
+          <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
+            Please configure morning or evening training batches in the Batches & Timings panel.
+          </p>
         </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-neutral-200/80 shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-neutral-100 bg-neutral-50/60 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-neutral-500" />
+              <span className="text-xs font-bold text-neutral-900">
+                {currentBatch.name} — Coach: {currentBatch.coachName} ({batchPlayers.length} Athletes)
+              </span>
+            </div>
+            <span className="text-xs text-neutral-400">Timing: {currentBatch.timing}</span>
+          </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
@@ -187,6 +198,7 @@ export const AttendanceView: React.FC = () => {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 };

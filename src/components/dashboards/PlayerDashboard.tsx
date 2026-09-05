@@ -69,7 +69,7 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
               {linkedPlayer?.name || currentUser?.name}
             </h2>
             <p className="text-xs text-slate-500 font-medium">
-              Club: <span className="font-semibold text-slate-700">{linkedPlayer?.clubName || activeClub.name}</span> • Category: {linkedPlayer?.category || 'Men Singles (U-19)'}
+              Club: <span className="font-semibold text-slate-700">{linkedPlayer?.clubName || activeClub?.name || 'Affiliated Academy'}</span> • Category: {linkedPlayer?.category || 'Men Singles (U-19)'}
             </p>
           </div>
         </div>

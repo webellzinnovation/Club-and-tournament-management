@@ -15,9 +15,10 @@ import {
 
 interface PlayersViewProps {
   onOpenClaimModal: () => void;
+  onSelectPlayer?: (playerId: string) => void;
 }
 
-export const PlayersView: React.FC<PlayersViewProps> = ({ onOpenClaimModal }) => {
+export const PlayersView: React.FC<PlayersViewProps> = ({ onOpenClaimModal, onSelectPlayer }) => {
   const { players, clubs, addPlayer } = useApp();
   const [search, setSearch] = useState('');
   const [selectedClub, setSelectedClub] = useState('ALL');
@@ -128,18 +129,20 @@ export const PlayersView: React.FC<PlayersViewProps> = ({ onOpenClaimModal }) =>
         {filteredPlayers.map(p => (
           <div
             key={p.id}
-            className="bg-white rounded-2xl border border-neutral-200/80 p-5 shadow-xs hover:border-neutral-300 transition-all flex flex-col justify-between"
+            onClick={() => onSelectPlayer && onSelectPlayer(p.id)}
+            className="bg-white rounded-2xl border border-neutral-200/80 p-5 shadow-xs hover:border-emerald-300 hover:shadow-sm transition-all flex flex-col justify-between cursor-pointer"
           >
             <div>
               <div className="flex items-start justify-between pb-3 border-b border-neutral-100">
                 <div className="flex items-center gap-3">
                   <img
-                    src={p.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                    src={p.photoUrl || p.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
                     alt={p.name}
+                    referrerPolicy="no-referrer"
                     className="w-11 h-11 rounded-xl object-cover border border-neutral-200"
                   />
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-900">{p.name}</h3>
+                    <h3 className="text-sm font-bold text-neutral-900 hover:text-emerald-600 transition-colors">{p.name}</h3>
                     <p className="text-[11px] text-neutral-500">{p.clubName}</p>
                   </div>
                 </div>
@@ -167,8 +170,8 @@ export const PlayersView: React.FC<PlayersViewProps> = ({ onOpenClaimModal }) =>
 
             <div className="pt-3 flex items-center justify-between text-xs text-neutral-500">
               <span>{p.playingStyle || 'Offensive'} • {p.hand}</span>
-              <span className="text-emerald-600 font-bold">
-                #{p.rankings?.clubRank || 1} in Club
+              <span className="text-emerald-600 font-bold hover:underline">
+                View Profile →
               </span>
             </div>
           </div>

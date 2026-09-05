@@ -36,18 +36,18 @@ export const ClubOwnerDashboard: React.FC<ClubOwnerDashboardProps> = ({ onNaviga
   const [newPlayerStyle, setNewPlayerStyle] = useState('Offensive');
   const [batchTab, setBatchTab] = useState('all');
 
-  const clubPlayers = players.filter(p => p.clubId === activeClub.id);
-  const clubCoaches = coaches.filter(c => c.clubId === activeClub.id);
-  const clubBatches = batches.filter(b => b.clubId === activeClub.id);
-  const totalRevenue = payments.filter(p => p.clubId === activeClub.id).reduce((sum, p) => sum + p.amount, 0);
+  const clubPlayers = players.filter(p => p.clubId === activeClub?.id);
+  const clubCoaches = coaches.filter(c => c.clubId === activeClub?.id);
+  const clubBatches = batches.filter(b => b.clubId === activeClub?.id);
+  const totalRevenue = payments.filter(p => p.clubId === activeClub?.id).reduce((sum, p) => sum + p.amount, 0);
 
   const handleCreatePlayer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlayerName.trim()) return;
     addPlayer({
       name: newPlayerName.trim(),
-      clubId: activeClub.id,
-      clubName: activeClub.name,
+      clubId: activeClub?.id || 'club-1',
+      clubName: activeClub?.name || 'Club Academy',
       sport: 'TABLE_TENNIS',
       category: newPlayerCategory,
       hand: newPlayerHand,
@@ -66,13 +66,13 @@ export const ClubOwnerDashboard: React.FC<ClubOwnerDashboardProps> = ({ onNaviga
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[10px] font-bold tracking-wider uppercase">
               Club Workspace
             </span>
-            <span className="text-xs text-slate-400 font-medium">Club Code: {activeClub.code}</span>
+            <span className="text-xs text-slate-400 font-medium">Club Code: {activeClub?.code || 'CLUB-01'}</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-            {activeClub.name}
+            {activeClub?.name || 'Club Academy'}
           </h2>
           <p className="text-xs text-slate-500 font-medium leading-relaxed">
-            {activeClub.address} • {activeClub.city} • Affiliated Academy
+            {activeClub?.address || '12 Sports Complex'} • {activeClub?.city || 'Chennai'} • Affiliated Academy
           </p>
         </div>
 

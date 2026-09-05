@@ -28,7 +28,11 @@ import {
   CreateTournamentInput,
   BroadcastAnnouncementInput,
   OrganizationMembership,
-  ClubMembership
+  ClubMembership,
+  TournamentStatus,
+  TournamentRegistration,
+  PlayerClubMembership,
+  TrainingSession
 } from '../types';
 import {
   calculateStandings,
@@ -41,7 +45,28 @@ import {
 import { dbService, SEED_ORG_2, SEED_CLUB_3 } from '../services/dbService';
 import { authService, SessionState } from '../services/authService';
 import { authorizationService, AuthContext } from '../services/authorizationService';
-import { SEED_ORGANIZATION, SEED_CLUBS } from '../data/seedData';
+import {
+  SEED_ORGANIZATION,
+  SEED_CLUBS,
+  SEED_TOURNAMENTS,
+  SEED_EVENTS,
+  SEED_PARTICIPANTS,
+  SEED_MATCHES,
+  SEED_RESOURCES,
+  SEED_REFEREES,
+  SEED_PLAYERS,
+  SEED_COACHES,
+  SEED_BATCHES,
+  SEED_ATTENDANCE,
+  SEED_MEMBERSHIPS,
+  SEED_PAYMENTS,
+  SEED_ANNOUNCEMENTS,
+  SEED_NOTIFICATIONS,
+  SEED_AUDIT_LOGS,
+  SEED_PLAYER_CLUB_MEMBERSHIPS,
+  SEED_TRAINING_SESSIONS,
+  SEED_REGISTRATIONS
+} from '../data/seedData';
 
 interface AppContextType {
   // Auth & RBAC
@@ -129,7 +154,20 @@ interface AppContextType {
   updateMatchScore: (matchId: string, score: SportScoreData, status?: Match['status']) => Promise<void>;
   submitMatchResult: (matchId: string, result: Omit<MatchResult, 'id'>) => Promise<void>;
   verifyMatchResult: (matchId: string) => Promise<void>;
+  advanceTournamentWinner: (matchId: string, winnerId: string) => Promise<void>;
+  updateTournamentStatus: (tournamentId: string, status: TournamentStatus) => Promise<void>;
   schedulingConflicts: SchedulingConflict[];
+
+  // Interconnected Registrations
+  registrations: TournamentRegistration[];
+  updateRegistrationStatus: (id: string, status: TournamentRegistration['status']) => Promise<void>;
+  addRegistration: (reg: Omit<TournamentRegistration, 'id' | 'registeredAt'>) => Promise<TournamentRegistration>;
+
+  // Multi-Club Memberships & Training Sessions
+  playerClubMemberships: PlayerClubMembership[];
+  trainingSessions: TrainingSession[];
+  addTrainingSession: (session: Omit<TrainingSession, 'id'>) => Promise<TrainingSession>;
+  updateTrainingSession: (id: string, updates: Partial<TrainingSession>) => Promise<void>;
 
   // Announcements & Notifications
   announcements: Announcement[];
@@ -172,11 +210,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Filter organizations by user's actual active memberships
   const organizations = useMemo(() => {
-    if (!currentUser) return [];
+    if (!currentUser) return allOrganizations;
     if (currentUser.currentRole === 'SUPER_ADMIN') {
       return allOrganizations;
     }
-    return allOrganizations.filter(org => orgMemberships.some(m => m.orgId === org.id || m.organizationId === org.id));
+    const filtered = allOrganizations.filter(org => orgMemberships.some(m => m.orgId === org.id || m.organizationId === org.id));
+    return filtered.length > 0 ? filtered : allOrganizations;
   }, [allOrganizations, currentUser, orgMemberships]);
 
   const organization = useMemo(() => {
@@ -185,18 +224,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Filter clubs by active organization and user's club memberships
   const clubs = useMemo(() => {
-    if (!currentUser) return [];
-    const orgClubs = allClubs.filter(c => c.orgId === activeOrgId);
-    if (currentUser.currentRole === 'SUPER_ADMIN') {
-      return orgClubs;
+    if (!currentUser) return allClubs;
+    const orgClubs = allClubs.filter(c => c.orgId === (activeOrgId || organization.id));
+    const candidateClubs = orgClubs.length > 0 ? orgClubs : allClubs;
+
+    if (
+      currentUser.currentRole === 'SUPER_ADMIN' ||
+      currentUser.currentRole === 'TOURNAMENT_ORGANIZER' ||
+      currentUser.currentRole === 'REFEREE'
+    ) {
+      return candidateClubs;
     }
-    // Filter to clubs the user is a member of (or all in org if club owner/admin)
-    return orgClubs.filter(c => clubMemberships.some(cm => cm.clubId === c.id));
-  }, [allClubs, activeOrgId, currentUser, clubMemberships]);
+    // Filter to clubs the user is a member of (or fallback to candidates if none assigned)
+    const userClubs = candidateClubs.filter(c => clubMemberships.some(cm => cm.clubId === c.id));
+    return userClubs.length > 0 ? userClubs : candidateClubs;
+  }, [allClubs, activeOrgId, organization.id, currentUser, clubMemberships]);
 
   const activeClub = useMemo(() => {
-    return clubs.find(c => c.id === activeClubId) || clubs[0];
-  }, [clubs, activeClubId]);
+    return clubs.find(c => c.id === activeClubId) || clubs[0] || allClubs[0] || SEED_CLUBS[0];
+  }, [clubs, activeClubId, allClubs]);
 
   // AuthContext for Authorization Service
   const authContext: AuthContext | null = useMemo(() => {
@@ -210,23 +256,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, activeOrgId, activeClubId, orgMemberships, clubMemberships]);
 
-  // Authoritative Workspace State (NO seed defaults - real database persistence)
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [activeTournamentId, setActiveTournamentIdState] = useState<string>('');
-  const [events, setEvents] = useState<TournamentEvent[]>([]);
-  const [participants, setParticipants] = useState<TournamentParticipant[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [resources, setResources] = useState<CompetitionResource[]>([]);
-  const [referees, setReferees] = useState<Referee[]>([]);
-  const [players, setPlayers] = useState<PlayerProfile[]>([]);
-  const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [notifications, setNotifications] = useState<WebNotification[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  // Authoritative Workspace State (Initialized with comprehensive seed ecosystem, dynamically updated by Firestore)
+  const [tournaments, setTournaments] = useState<Tournament[]>(() => SEED_TOURNAMENTS);
+  const [activeTournamentId, setActiveTournamentIdState] = useState<string>('t-1');
+  const [events, setEvents] = useState<TournamentEvent[]>(() => SEED_EVENTS);
+  const [participants, setParticipants] = useState<TournamentParticipant[]>(() => SEED_PARTICIPANTS);
+  const [matches, setMatches] = useState<Match[]>(() => SEED_MATCHES);
+  const [resources, setResources] = useState<CompetitionResource[]>(() => SEED_RESOURCES);
+  const [referees, setReferees] = useState<Referee[]>(() => SEED_REFEREES);
+  const [players, setPlayers] = useState<PlayerProfile[]>(() => SEED_PLAYERS);
+  const [coaches, setCoaches] = useState<Coach[]>(() => SEED_COACHES);
+  const [batches, setBatches] = useState<Batch[]>(() => SEED_BATCHES);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => SEED_ATTENDANCE);
+  const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>(() => SEED_MEMBERSHIPS);
+  const [payments, setPayments] = useState<PaymentRecord[]>(() => SEED_PAYMENTS);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() => SEED_ANNOUNCEMENTS);
+  const [notifications, setNotifications] = useState<WebNotification[]>(() => SEED_NOTIFICATIONS);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => SEED_AUDIT_LOGS);
+  const [registrations, setRegistrations] = useState<TournamentRegistration[]>(() => SEED_REGISTRATIONS);
+  const [playerClubMemberships, setPlayerClubMemberships] = useState<PlayerClubMembership[]>(() => SEED_PLAYER_CLUB_MEMBERSHIPS);
+  const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>(() => SEED_TRAINING_SESSIONS);
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isFirestoreLive, setIsFirestoreLive] = useState<boolean>(true);
@@ -240,7 +289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // When active tournament ID is changed or list of tournaments changes, ensure valid selection
   const activeTournament = useMemo(() => {
-    return tournaments.find(t => t.id === activeTournamentId) || tournaments[0];
+    return tournaments.find(t => t.id === activeTournamentId) || tournaments[0] || SEED_TOURNAMENTS[0];
   }, [tournaments, activeTournamentId]);
 
   const setActiveTournamentId = useCallback((id: string) => {
@@ -933,6 +982,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await dbService.verifyMatchResult(matchId, match, activeTournament, authContext, winnerId);
   }, [authContext, currentUser, matches, activeTournament]);
 
+  const advanceTournamentWinner = useCallback(async (matchId: string, winnerId: string) => {
+    const match = matches.find(m => m.id === matchId);
+    if (!match) return;
+    const winnerName = winnerId === match.participant1Id ? match.participant1Name : match.participant2Name;
+    let updatedMatches = matches.map(m => m.id === matchId ? { ...m, status: 'VERIFIED' as const, winnerId } : m);
+    if (winnerId && winnerName) {
+      updatedMatches = advanceWinnerInBracket(updatedMatches, matchId, winnerId, winnerName);
+    }
+    setMatches(updatedMatches);
+    await logAction('WINNER_ADVANCED', 'Match', matchId, `Advanced winner ${winnerName} to next round bracket slot.`);
+  }, [matches, logAction]);
+
+  const updateTournamentStatus = useCallback(async (tournamentId: string, status: TournamentStatus) => {
+    setTournaments(prev => prev.map(t => t.id === tournamentId ? { ...t, status } : t));
+    await logAction('TOURNAMENT_STATUS_UPDATED', 'Tournament', tournamentId, `Tournament status moved to ${status}`);
+  }, [logAction]);
+
+  const updateRegistrationStatus = useCallback(async (id: string, status: TournamentRegistration['status']) => {
+    setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    await logAction('REGISTRATION_UPDATED', 'TournamentRegistration', id, `Registration updated to ${status}`);
+  }, [logAction]);
+
+  const addRegistration = useCallback(async (regData: Omit<TournamentRegistration, 'id' | 'registeredAt'>) => {
+    const newReg: TournamentRegistration = {
+      ...regData,
+      id: `reg-${Date.now()}`,
+      registeredAt: new Date().toISOString().split('T')[0]
+    };
+    setRegistrations(prev => [newReg, ...prev]);
+    await logAction('REGISTRATION_ADDED', 'TournamentRegistration', newReg.id, `Athlete ${newReg.playerName} registered for event ${newReg.eventName}`);
+    return newReg;
+  }, [logAction]);
+
+  const addTrainingSession = useCallback(async (sessionData: Omit<TrainingSession, 'id'>) => {
+    const newSession: TrainingSession = {
+      ...sessionData,
+      id: `ts-${Date.now()}`
+    };
+    setTrainingSessions(prev => [newSession, ...prev]);
+    await logAction('SESSION_SCHEDULED', 'TrainingSession', newSession.id, `Scheduled session: ${newSession.focusArea}`);
+    return newSession;
+  }, [logAction]);
+
+  const updateTrainingSession = useCallback(async (id: string, updates: Partial<TrainingSession>) => {
+    setTrainingSessions(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  }, []);
+
   const createAnnouncement = useCallback(async (announcementData: Omit<Announcement, 'id' | 'createdAt'>) => {
     if (!authContext) throw new Error('Unauthenticated');
     const newAnn = await dbService.createAnnouncement(announcementData, authContext);
@@ -1040,7 +1136,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateMatchScore,
         submitMatchResult,
         verifyMatchResult,
+        advanceTournamentWinner,
+        updateTournamentStatus,
         schedulingConflicts,
+        registrations,
+        updateRegistrationStatus,
+        addRegistration,
+        playerClubMemberships,
+        trainingSessions,
+        addTrainingSession,
+        updateTrainingSession,
         announcements,
         notifications,
         unreadNotificationsCount,

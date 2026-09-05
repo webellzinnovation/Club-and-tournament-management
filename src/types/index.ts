@@ -135,6 +135,32 @@ export interface ClubMembership {
   createdAt: string;
 }
 
+export interface PlayerClubMembership {
+  id: string;
+  playerId: string;
+  clubId: string;
+  clubName?: string;
+  organizationId: string;
+  status: 'ACTIVE' | 'FORMER' | 'INVITED' | 'PENDING';
+  role: 'PLAYER' | 'CAPTAIN' | 'TRAINEE';
+  joinedAt: string;
+}
+
+export interface TrainingSession {
+  id: string;
+  batchId: string;
+  batchName: string;
+  clubId: string;
+  coachId: string;
+  coachName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  focusArea: string;
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+  attendanceCount?: number;
+}
+
 export interface Club {
   id: string;
   orgId: string;
@@ -472,6 +498,45 @@ export interface Match {
   groupName?: string; // e.g. 'Group A'
 }
 
+export type TournamentStatus =
+  | 'DRAFT'
+  | 'REGISTRATION_OPEN'
+  | 'REGISTRATION_CLOSED'
+  | 'SETUP'
+  | 'READY'
+  | 'LIVE'
+  | 'COMPLETED'
+  | 'ARCHIVED';
+
+export interface TournamentRegistration {
+  id: string;
+  tournamentId: string;
+  eventId: string;
+  eventName: string;
+  playerId: string;
+  playerName: string;
+  playerPhoto?: string;
+  partnerPlayerId?: string;
+  partnerPlayerName?: string;
+  clubId?: string;
+  clubName?: string;
+  type: 'INDIVIDUAL' | 'PAIR' | 'TEAM';
+  source: 'PLAYER_SELF' | 'ORGANIZER_INVITE' | 'CLUB_NOMINATION' | 'ON_THE_SPOT';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WAITLISTED' | 'FINALIZED';
+  seed?: number;
+  feePaid: boolean;
+  registeredAt: string;
+}
+
+export interface TournamentStaff {
+  id: string;
+  tournamentId: string;
+  userId: string;
+  name: string;
+  role: 'OWNER' | 'ORGANIZER' | 'EVENT_MANAGER' | 'SCHEDULER' | 'REFEREE' | 'SCOREKEEPER';
+  assignedEvents?: string[];
+}
+
 export interface Tournament {
   id: string;
   slug: string; // e.g. "chennai-open-2026"
@@ -484,7 +549,7 @@ export interface Tournament {
   clubId?: string;
   ownerUserId: string;
   createdByUserId: string;
-  status: 'DRAFT' | 'REGISTRATION' | 'ACTIVE' | 'COMPLETED';
+  status: TournamentStatus | 'REGISTRATION' | 'ACTIVE';
   startDate: string;
   endDate: string;
   venueName: string;

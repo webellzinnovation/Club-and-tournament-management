@@ -25,8 +25,8 @@ interface CoachDashboardProps {
 export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onNavigate }) => {
   const { activeClub, batches, players, attendanceRecords, matches, markAttendance } = useApp();
 
-  const myBatches = batches.filter(b => b.clubId === activeClub.id);
-  const myStudents = players.filter(p => p.clubId === activeClub.id);
+  const myBatches = batches.filter(b => b.clubId === activeClub?.id);
+  const myStudents = players.filter(p => p.clubId === activeClub?.id);
 
   // Quick attendance marker state for active batch
   const [selectedBatchId, setSelectedBatchId] = useState(myBatches[0]?.id || '');
@@ -55,7 +55,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({ onNavigate }) =>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[10px] font-bold tracking-wider uppercase">
               Coaching Desk
             </span>
-            <span className="text-xs text-slate-400 font-medium">Academy: {activeClub.name}</span>
+            <span className="text-xs text-slate-400 font-medium">Academy: {activeClub?.name || 'Club Academy'}</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
             Training & Athlete Development
