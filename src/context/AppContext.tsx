@@ -17,6 +17,7 @@ import {
   TournamentEvent,
   TournamentParticipant,
   Match,
+  MatchResult,
   Announcement,
   WebNotification,
   AuditLog,
@@ -51,28 +52,40 @@ import {
   calculateStandings,
   generateKnockoutBracket,
   generateRoundRobinFixtures,
+  advanceWinnerInBracket,
   detectSchedulingConflicts,
   SchedulingConflict
 } from '../engine/competitionEngine';
+import { dbService, SEED_ORG_2, SEED_CLUB_3, SEED_USER_ORG2_OWNER } from '../services/dbService';
+import { authService, Session, PermissionAction } from '../services/authService';
 
 interface AppContextType {
-  // Auth & Roles
+  // Auth & RBAC
   currentUser: UserAccount;
+  session: Session | null;
   users: UserAccount[];
-  switchUser: (userId: string) => void;
+  switchUser: (userId: string, targetRole?: UserRole) => void;
   switchRole: (role: UserRole) => void;
+  login: (email: string) => { success: boolean; message?: string };
+  logout: () => void;
+  hasPermission: (action: PermissionAction) => boolean;
+  canAccessOrg: (orgId: string) => boolean;
+  canAccessClub: (clubId: string) => boolean;
 
-  // Organizations & Clubs
+  // Organizations & Multi-tenancy
+  organizations: Organization[];
   organization: Organization;
+  activeOrgId: string;
+  setActiveOrgId: (orgId: string) => void;
   clubs: Club[];
   activeClub: Club;
   setActiveClubId: (clubId: string) => void;
 
   // Players & Claiming
   players: PlayerProfile[];
-  addPlayer: (data: Partial<PlayerProfile>) => PlayerProfile;
-  updatePlayer: (id: string, data: Partial<PlayerProfile>) => void;
-  claimPlayerProfile: (playerId: string) => { success: boolean; message: string };
+  addPlayer: (data: Partial<PlayerProfile>) => Promise<PlayerProfile>;
+  updatePlayer: (id: string, data: Partial<PlayerProfile>) => Promise<void>;
+  claimPlayerProfile: (playerId: string, verificationValue?: string, method?: 'EMAIL_OTP' | 'MOBILE_OTP' | 'FEDERATION_ID') => Promise<{ success: boolean; message: string }>;
 
   // Club Operations
   coaches: Coach[];
@@ -82,9 +95,9 @@ interface AppContextType {
   payments: PaymentRecord[];
   addCoach: (coach: Omit<Coach, 'id'>) => void;
   addBatch: (batch: Omit<Batch, 'id'>) => void;
-  recordAttendance: (batchId: string, date: string, records: AttendanceRecord['records']) => void;
-  markAttendance: (batchId: string, playerId: string, date: string, status: AttendanceStatus) => void;
-  recordPayment: (payment: Omit<PaymentRecord, 'id' | 'receiptNumber'>) => void;
+  recordAttendance: (batchId: string, date: string, records: AttendanceRecord['records']) => Promise<void>;
+  markAttendance: (batchId: string, playerId: string, date: string, status: AttendanceStatus) => Promise<void>;
+  recordPayment: (payment: Omit<PaymentRecord, 'id' | 'receiptNumber'>) => Promise<void>;
   addMembershipPlan: (plan: Omit<MembershipPlan, 'id' | 'activeSubscribersCount'>) => void;
 
   // Tournaments & Events
@@ -97,122 +110,163 @@ interface AppContextType {
   resources: CompetitionResource[];
   referees: Referee[];
   standings: StandingRow[];
-  addTournament: (tournament: Omit<Tournament, 'id' | 'slug' | 'eventsCount' | 'totalMatchesCount'>, events: Partial<TournamentEvent>[]) => Tournament;
-  createTournament: (data: CreateTournamentInput) => Tournament;
-  generateDraw: (eventId: string, format: TournamentFormat) => void;
-  assignMatch: (matchId: string, resourceId?: string, refereeId?: string, date?: string, time?: string) => { success: boolean; conflicts: SchedulingConflict[] };
-  callPlayers: (matchId: string, leadMinutes?: number) => void;
-  updateMatchScore: (matchId: string, score: SportScoreData, status?: Match['status']) => void;
-  verifyMatchResult: (matchId: string) => void;
+  addTournament: (tournament: Omit<Tournament, 'id' | 'slug' | 'eventsCount' | 'totalMatchesCount'>, events: Partial<TournamentEvent>[]) => Promise<Tournament>;
+  createTournament: (data: CreateTournamentInput) => Promise<Tournament>;
+  generateDraw: (eventId: string, format: TournamentFormat) => Promise<void>;
+  assignMatch: (matchId: string, resourceId?: string, refereeId?: string, date?: string, time?: string) => Promise<{ success: boolean; conflicts: SchedulingConflict[] }>;
+  callPlayers: (matchId: string, leadMinutes?: number) => Promise<void>;
+  updateMatchScore: (matchId: string, score: SportScoreData, status?: Match['status']) => Promise<void>;
+  submitMatchResult: (matchId: string, result: Omit<MatchResult, 'id'>) => Promise<void>;
+  verifyMatchResult: (matchId: string) => Promise<void>;
   schedulingConflicts: SchedulingConflict[];
 
   // Announcements & Notifications
   announcements: Announcement[];
   notifications: WebNotification[];
   unreadNotificationsCount: number;
-  createAnnouncement: (announcement: Omit<Announcement, 'id' | 'createdAt'>) => void;
-  broadcastAnnouncement: (data: BroadcastAnnouncementInput) => void;
-  markNotificationAsRead: (id: string) => void;
-  markAllNotificationsAsRead: () => void;
-  addNotification: (notif: Omit<WebNotification, 'id' | 'createdAt' | 'isRead'>) => void;
+  createAnnouncement: (announcement: Omit<Announcement, 'id' | 'createdAt'>) => Promise<void>;
+  broadcastAnnouncement: (data: BroadcastAnnouncementInput) => Promise<void>;
+  markNotificationAsRead: (id: string) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
+  addNotification: (notif: Omit<WebNotification, 'id' | 'createdAt' | 'isRead'>) => Promise<void>;
 
   // Audit Logs
   auditLogs: AuditLog[];
-  logAction: (action: string, entity: string, entityId: string, details: string) => void;
+  logAction: (action: string, entity: string, entityId: string, details: string) => Promise<void>;
 
-  // Global Search
+  // Global Search & Live Sync Status
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  isFirestoreLive: boolean;
 }
 
-const STORAGE_KEY = 'sportos_v1_data';
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load state from localStorage or use defaults
-  const [currentUser, setCurrentUser] = useState<UserAccount>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_user`);
-    return saved ? JSON.parse(saved) : SEED_USERS[0];
-  });
+  // Auth Session State
+  const [session, setSession] = useState<Session | null>(() => authService.getSession());
+  const currentUser = session?.user ?? SEED_USERS[0];
+  const allUsers = useMemo(() => [...SEED_USERS, SEED_USER_ORG2_OWNER], []);
 
-  const [users] = useState<UserAccount[]>(SEED_USERS);
-  const [organization] = useState<Organization>(SEED_ORGANIZATION);
-  const [clubs, setClubs] = useState<Club[]>(SEED_CLUBS);
+  // Multi-tenancy State
+  const organizations = useMemo(() => [SEED_ORGANIZATION, SEED_ORG_2], []);
+  const [activeOrgId, setActiveOrgId] = useState<string>(currentUser.orgId || 'org-1');
+  const allClubs = useMemo(() => [...SEED_CLUBS, SEED_CLUB_3], []);
   const [activeClubId, setActiveClubId] = useState<string>('club-1');
 
-  const [players, setPlayers] = useState<PlayerProfile[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_players`);
-    return saved ? JSON.parse(saved) : SEED_PLAYERS;
-  });
+  // Authoritative State (backed by Firestore realtime listeners)
+  const [players, setPlayers] = useState<PlayerProfile[]>(SEED_PLAYERS);
+  const [tournaments, setTournaments] = useState<Tournament[]>(SEED_TOURNAMENTS);
+  const [activeTournamentId, setActiveTournamentId] = useState<string>('t-1');
+  const [events, setEvents] = useState<TournamentEvent[]>(SEED_EVENTS);
+  const [participants, setParticipants] = useState<TournamentParticipant[]>(SEED_PARTICIPANTS);
+  const [matches, setMatches] = useState<Match[]>(SEED_MATCHES);
+  const [resources, setResources] = useState<CompetitionResource[]>(SEED_RESOURCES);
+  const [referees] = useState<Referee[]>(SEED_REFEREES);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(SEED_ANNOUNCEMENTS);
+  const [notifications, setNotifications] = useState<WebNotification[]>(SEED_NOTIFICATIONS);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(SEED_AUDIT_LOGS);
 
+  // Club Internal Data
   const [coaches, setCoaches] = useState<Coach[]>(SEED_COACHES);
   const [batches, setBatches] = useState<Batch[]>(SEED_BATCHES);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(SEED_ATTENDANCE);
   const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>(SEED_MEMBERSHIPS);
   const [payments, setPayments] = useState<PaymentRecord[]>(SEED_PAYMENTS);
 
-  const [tournaments, setTournaments] = useState<Tournament[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_tournaments`);
-    return saved ? JSON.parse(saved) : SEED_TOURNAMENTS;
-  });
-
-  const [activeTournamentId, setActiveTournamentId] = useState<string>('t-1');
-  const [events, setEvents] = useState<TournamentEvent[]>(SEED_EVENTS);
-  const [participants, setParticipants] = useState<TournamentParticipant[]>(SEED_PARTICIPANTS);
-  const [matches, setMatches] = useState<Match[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_matches`);
-    return saved ? JSON.parse(saved) : SEED_MATCHES;
-  });
-
-  const [resources, setResources] = useState<CompetitionResource[]>(SEED_RESOURCES);
-  const [referees, setReferees] = useState<Referee[]>(SEED_REFEREES);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(SEED_ANNOUNCEMENTS);
-  const [notifications, setNotifications] = useState<WebNotification[]>(SEED_NOTIFICATIONS);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(SEED_AUDIT_LOGS);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isFirestoreLive, setIsFirestoreLive] = useState<boolean>(true);
 
-  // Persist key state
+  // Subscribe to auth session changes
   useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(currentUser));
-      localStorage.setItem(`${STORAGE_KEY}_matches`, JSON.stringify(matches));
-      localStorage.setItem(`${STORAGE_KEY}_players`, JSON.stringify(players));
-      localStorage.setItem(`${STORAGE_KEY}_tournaments`, JSON.stringify(tournaments));
-    } catch (e) {
-      console.error('Storage sync error:', e);
-    }
-  }, [currentUser, matches, players, tournaments]);
-
-  // Real-time broadcast channel across browser tabs
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      const channel = new BroadcastChannel('sportos_live_bus');
-      channel.onmessage = (event) => {
-        const { type, payload } = event.data;
-        if (type === 'SCORE_UPDATE') {
-          setMatches(prev => prev.map(m => m.id === payload.id ? payload : m));
-        } else if (type === 'NEW_NOTIFICATION') {
-          setNotifications(prev => [payload, ...prev]);
-        } else if (type === 'NEW_ANNOUNCEMENT') {
-          setAnnouncements(prev => [payload, ...prev]);
-        }
-      };
-      return () => channel.close();
-    }
+    return authService.subscribe((s) => {
+      setSession(s);
+      if (s) {
+        setActiveOrgId(s.activeOrgId);
+        setActiveClubId(s.activeClubId || 'club-1');
+      }
+    });
   }, []);
 
-  const broadcastEvent = (type: string, payload: unknown) => {
-    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-      try {
-        const channel = new BroadcastChannel('sportos_live_bus');
-        channel.postMessage({ type, payload });
-        channel.close();
-      } catch (e) {
-        // Safe fallback
-      }
-    }
-  };
+  // Initialize Firestore on mount and setup real-time listeners
+  useEffect(() => {
+    let unsubs: (() => void)[] = [];
 
+    const setupFirestore = async () => {
+      try {
+        await dbService.initDatabase();
+        setIsFirestoreLive(true);
+
+        // 1. Matches realtime listener
+        const unsubMatches = dbService.subscribeToMatches(activeTournamentId, (liveMatches) => {
+          if (liveMatches.length > 0) {
+            setMatches(liveMatches);
+          }
+        });
+        unsubs.push(unsubMatches);
+
+        // 2. Tournaments realtime listener
+        const unsubTourneys = dbService.subscribeToTournaments((liveTourneys) => {
+          if (liveTourneys.length > 0) {
+            setTournaments(liveTourneys);
+          }
+        });
+        unsubs.push(unsubTourneys);
+
+        // 3. Announcements realtime listener
+        const unsubAnnounce = dbService.subscribeToAnnouncements((liveAnnouncements) => {
+          if (liveAnnouncements.length > 0) {
+            setAnnouncements(liveAnnouncements);
+          }
+        });
+        unsubs.push(unsubAnnounce);
+
+        // 4. Notifications realtime listener
+        const unsubNotifs = dbService.subscribeToNotifications(currentUser.id, (liveNotifs) => {
+          if (liveNotifs.length > 0) {
+            setNotifications(liveNotifs);
+          }
+        });
+        unsubs.push(unsubNotifs);
+
+        // 5. Audit logs realtime listener
+        const unsubLogs = dbService.subscribeToAuditLogs((liveLogs) => {
+          if (liveLogs.length > 0) {
+            setAuditLogs(liveLogs);
+          }
+        });
+        unsubs.push(unsubLogs);
+
+        // 6. Players realtime listener
+        const unsubPlayers = dbService.subscribeToPlayers((livePlayers) => {
+          if (livePlayers.length > 0) {
+            setPlayers(livePlayers);
+          }
+        });
+        unsubs.push(unsubPlayers);
+
+        // 7. Resources realtime listener
+        const unsubResources = dbService.subscribeToResources((liveResources) => {
+          if (liveResources.length > 0) {
+            setResources(liveResources);
+          }
+        });
+        unsubs.push(unsubResources);
+      } catch (e) {
+        console.warn('Realtime listener subscription warning:', e);
+      }
+    };
+
+    setupFirestore();
+
+    return () => {
+      unsubs.forEach(unsub => {
+        try { unsub(); } catch {}
+      });
+    };
+  }, [activeTournamentId, currentUser.id]);
+
+  // Notification audio chime
   const playNotificationSound = useCallback(() => {
     try {
       const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -220,22 +274,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
       gain.gain.setValueAtTime(0.08, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + 0.3);
-    } catch (e) {
+    } catch {
       // Audio context might be restricted before interaction
     }
   }, []);
 
-  const logAction = useCallback((action: string, entity: string, entityId: string, details: string) => {
+  // --- Auth & RBAC Actions ---
+
+  const switchUser = useCallback((userId: string, targetRole?: UserRole) => {
+    authService.devQuickSwitchUser(userId, targetRole);
+  }, []);
+
+  const switchRole = useCallback((role: UserRole) => {
+    if (session?.user) {
+      authService.createSessionForUser(session.user, role);
+    }
+  }, [session]);
+
+  const login = useCallback((email: string) => {
+    return authService.login(email);
+  }, []);
+
+  const logout = useCallback(() => {
+    authService.logout();
+  }, []);
+
+  const hasPermission = useCallback((action: PermissionAction) => {
+    return authService.hasPermission(action);
+  }, []);
+
+  const canAccessOrg = useCallback((orgId: string) => {
+    return authService.canAccessOrg(orgId);
+  }, []);
+
+  const canAccessClub = useCallback((clubId: string) => {
+    return authService.canAccessClub(clubId);
+  }, []);
+
+  // --- Audit & Notification Actions ---
+
+  const logAction = useCallback(async (action: string, entity: string, entityId: string, details: string) => {
     const newLog: AuditLog = {
-      id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: `aud-${Date.now()}`,
       actor: currentUser.name,
       actorRole: currentUser.currentRole,
       action,
@@ -245,92 +333,104 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString()
     };
     setAuditLogs(prev => [newLog, ...prev]);
+    await dbService.createAuditLog(newLog);
   }, [currentUser]);
 
-  const addNotification = useCallback((notifData: Omit<WebNotification, 'id' | 'createdAt' | 'isRead'>) => {
-    const newNotif: WebNotification = {
+  const addNotification = useCallback(async (notifData: Omit<WebNotification, 'id' | 'createdAt' | 'isRead'>) => {
+    const newNotif = await dbService.createNotification({
       ...notifData,
-      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      createdAt: new Date().toISOString(),
       isRead: false
-    };
+    });
     setNotifications(prev => [newNotif, ...prev]);
-    broadcastEvent('NEW_NOTIFICATION', newNotif);
     playNotificationSound();
   }, [playNotificationSound]);
 
-  const switchUser = useCallback((userId: string) => {
-    const found = users.find(u => u.id === userId);
-    if (found) {
-      setCurrentUser(found);
-    }
-  }, [users]);
-
-  const switchRole = useCallback((role: UserRole) => {
-    setCurrentUser(prev => ({ ...prev, currentRole: role }));
+  const markNotificationAsRead = useCallback(async (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    await dbService.markNotificationRead(id);
   }, []);
 
-  const addPlayer = useCallback((data: Partial<PlayerProfile>): PlayerProfile => {
+  const markAllNotificationsAsRead = useCallback(async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    await dbService.markAllNotificationsRead(currentUser.id);
+  }, [currentUser.id]);
+
+  // --- Player Management & Claim Security ---
+
+  const addPlayer = useCallback(async (data: Partial<PlayerProfile>): Promise<PlayerProfile> => {
     const count = players.length + 1;
     const prefix = data.sport === 'TABLE_TENNIS' ? 'TT' : data.sport === 'BADMINTON' ? 'BD' : data.sport === 'CRICKET' ? 'CR' : 'FB';
-    const newPlayer: PlayerProfile = {
-      id: `p-${Date.now()}`,
+    
+    // Minimal requirements: ONLY name is required!
+    const newPlayerInput: Omit<PlayerProfile, 'id'> = {
       playerId: `${prefix}-${String(180 + count).padStart(5, '0')}`,
       name: data.name || 'Anonymous Player',
       gender: data.gender || 'MALE',
       dateOfBirth: data.dateOfBirth,
       mobile: data.mobile,
       email: data.email,
-      clubId: data.clubId || 'club-1',
-      clubName: data.clubName || 'Chennai TT Academy',
+      clubId: data.clubId || activeClubId,
+      clubName: data.clubName || (allClubs.find(c => c.id === activeClubId)?.name || 'Chennai TT Academy'),
       sport: data.sport || 'TABLE_TENNIS',
       category: data.category || 'Open',
       hand: data.hand || 'RIGHT',
       playingStyle: data.playingStyle || 'Offensive',
       status: 'ACTIVE',
       createdAt: new Date().toISOString().split('T')[0],
-      rating: 1500,
-      tournamentPoints: 0,
-      rankings: {},
+      rating: data.rating ?? 1500,
+      tournamentPoints: data.tournamentPoints ?? 0,
+      rankings: data.rankings || {},
       matchesPlayed: 0,
       wins: 0,
       losses: 0,
       ...data
     };
 
-    setPlayers(prev => [newPlayer, ...prev]);
-    logAction('PLAYER_CREATED', 'PlayerProfile', newPlayer.playerId, `Created permanent player profile for ${newPlayer.name} (${newPlayer.playerId}).`);
-    return newPlayer;
-  }, [players, logAction]);
+    const created = await dbService.createPlayer(newPlayerInput);
+    setPlayers(prev => [created, ...prev]);
+    await logAction('PLAYER_CREATED', 'PlayerProfile', created.playerId, `Created independent player profile for ${created.name} (${created.playerId}).`);
+    return created;
+  }, [players.length, activeClubId, allClubs, logAction]);
 
-  const updatePlayer = useCallback((id: string, data: Partial<PlayerProfile>) => {
+  const updatePlayer = useCallback(async (id: string, data: Partial<PlayerProfile>) => {
     setPlayers(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+    await dbService.updatePlayer(id, data);
   }, []);
 
-  const claimPlayerProfile = useCallback((playerId: string): { success: boolean; message: string } => {
+  const claimPlayerProfile = useCallback(async (
+    playerId: string,
+    verificationValue?: string,
+    method: 'EMAIL_OTP' | 'MOBILE_OTP' | 'FEDERATION_ID' = 'EMAIL_OTP'
+  ): Promise<{ success: boolean; message: string }> => {
     const player = players.find(p => p.playerId === playerId || p.id === playerId);
     if (!player) {
-      return { success: false, message: 'Player profile with this ID not found.' };
+      return { success: false, message: `Player profile "${playerId}" not found.` };
     }
 
-    // Link user to this player profile
-    setCurrentUser(prev => ({
-      ...prev,
-      linkedPlayerId: player.playerId,
-      name: player.name
-    }));
+    const val = verificationValue || player.email || player.mobile || 'VERIFIED-TOKEN';
+    const result = await dbService.claimPlayerProfile(currentUser.id, player.playerId, val, method);
 
-    addNotification({
-      recipientUserId: currentUser.id,
-      recipientPlayerId: player.id,
-      type: 'GENERAL_SYSTEM_NOTIFICATION',
-      title: 'Profile Claim Verified',
-      message: `You have successfully linked your account with Player ID ${player.playerId} (${player.name}). Existing tournament history, stats, and rankings are preserved.`
-    });
+    if (result.success) {
+      // Update local session
+      authService.createSessionForUser({
+        ...currentUser,
+        linkedPlayerId: player.playerId,
+        name: player.name
+      });
 
-    logAction('PROFILE_CLAIMED', 'PlayerProfile', player.playerId, `User ${currentUser.email} claimed player profile ${player.playerId} without data loss.`);
-    return { success: true, message: `Successfully linked with ${player.name} (${player.playerId})!` };
-  }, [players, currentUser, addNotification, logAction]);
+      await addNotification({
+        recipientUserId: currentUser.id,
+        recipientPlayerId: player.id,
+        type: 'GENERAL_SYSTEM_NOTIFICATION',
+        title: 'Profile Claim Verified',
+        message: `Successfully linked your account with Player ID ${player.playerId} (${player.name}). Tournament history, ranking points, and draw records are permanently preserved.`
+      });
+    }
+
+    return result;
+  }, [players, currentUser, addNotification]);
+
+  // --- Club Operations ---
 
   const addCoach = useCallback((coach: Omit<Coach, 'id'>) => {
     const newCoach = { ...coach, id: `coach-${Date.now()}` };
@@ -344,7 +444,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction('BATCH_CREATED', 'Batch', newBatch.id, `Created batch ${newBatch.name}`);
   }, [logAction]);
 
-  const recordAttendance = useCallback((batchId: string, date: string, records: AttendanceRecord['records']) => {
+  const recordAttendance = useCallback(async (batchId: string, date: string, records: AttendanceRecord['records']) => {
     const newRecord: AttendanceRecord = {
       id: `att-${Date.now()}`,
       batchId,
@@ -352,12 +452,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       records
     };
     setAttendanceRecords(prev => [newRecord, ...prev]);
-    logAction('ATTENDANCE_MARKED', 'AttendanceRecord', newRecord.id, `Marked attendance for batch ${batchId} on ${date}`);
+    await dbService.recordAttendance(newRecord);
+    await logAction('ATTENDANCE_MARKED', 'AttendanceRecord', newRecord.id, `Marked attendance for batch ${batchId} on ${date}`);
   }, [logAction]);
 
-  const markAttendance = useCallback((batchId: string, playerId: string, date: string, status: AttendanceStatus) => {
+  const markAttendance = useCallback(async (batchId: string, playerId: string, date: string, status: AttendanceStatus) => {
     const player = players.find(p => p.id === playerId);
     const playerName = player?.name || 'Player';
+    
+    let targetRecord: AttendanceRecord | undefined;
     setAttendanceRecords(prev => {
       const existingRecordIndex = prev.findIndex(r => r.batchId === batchId && r.date === date);
       if (existingRecordIndex >= 0) {
@@ -370,21 +473,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updatedRecords.push({ playerId, playerName, status });
         }
         const updated = [...prev];
-        updated[existingRecordIndex] = { ...existing, records: updatedRecords };
+        targetRecord = { ...existing, records: updatedRecords };
+        updated[existingRecordIndex] = targetRecord;
         return updated;
       } else {
-        const newRec: AttendanceRecord = {
+        targetRecord = {
           id: `att-${Date.now()}`,
           batchId,
           date,
           records: [{ playerId, playerName, status }]
         };
-        return [newRec, ...prev];
+        return [targetRecord, ...prev];
       }
     });
+
+    if (targetRecord) {
+      await dbService.recordAttendance(targetRecord);
+    }
   }, [players]);
 
-  const recordPayment = useCallback((payment: Omit<PaymentRecord, 'id' | 'receiptNumber'>) => {
+  const recordPayment = useCallback(async (payment: Omit<PaymentRecord, 'id' | 'receiptNumber'>) => {
     const receiptNumber = `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const newPayment: PaymentRecord = {
       ...payment,
@@ -392,7 +500,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       receiptNumber
     };
     setPayments(prev => [newPayment, ...prev]);
-    logAction('PAYMENT_RECORDED', 'PaymentRecord', newPayment.id, `Recorded ${payment.currency} ${payment.amount} from ${payment.payerName} (${receiptNumber})`);
+    await dbService.recordPayment(newPayment);
+    await logAction('PAYMENT_RECORDED', 'PaymentRecord', newPayment.id, `Recorded ${payment.currency} ${payment.amount} from ${payment.payerName} (${receiptNumber})`);
   }, [logAction]);
 
   const addMembershipPlan = useCallback((plan: Omit<MembershipPlan, 'id' | 'activeSubscribersCount'>) => {
@@ -404,10 +513,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMembershipPlans(prev => [...prev, newPlan]);
   }, []);
 
-  const addTournament = useCallback((
+  // --- Tournament & Competition Engine Actions ---
+
+  const addTournament = useCallback(async (
     tournamentData: Omit<Tournament, 'id' | 'slug' | 'eventsCount' | 'totalMatchesCount'>,
     eventsData: Partial<TournamentEvent>[]
-  ): Tournament => {
+  ): Promise<Tournament> => {
     const id = `t-${Date.now()}`;
     const slug = tournamentData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const newTournament: Tournament = {
@@ -418,9 +529,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalMatchesCount: 0
     };
 
-    setTournaments(prev => [newTournament, ...prev]);
-
-    // Create events for this tournament
     const newEvents: TournamentEvent[] = eventsData.map((ev, idx) => ({
       id: `ev-${Date.now()}-${idx}`,
       tournamentId: id,
@@ -443,15 +551,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'UPCOMING'
     }));
 
+    setTournaments(prev => [newTournament, ...prev]);
     setEvents(prev => [...prev, ...newEvents]);
-    logAction('TOURNAMENT_CREATED', 'Tournament', id, `Created ${tournamentData.sport} tournament: ${tournamentData.title} (${newTournament.type})`);
+
+    await dbService.saveTournamentHierarchy(newTournament, newEvents);
+    await logAction('TOURNAMENT_CREATED', 'Tournament', id, `Created ${tournamentData.sport} tournament: ${tournamentData.title} (${newTournament.type})`);
     return newTournament;
   }, [logAction]);
 
-  const createTournament = useCallback((data: CreateTournamentInput) => {
-    return addTournament(data, data.events || [
+  const createTournament = useCallback(async (data: CreateTournamentInput) => {
+    return await addTournament(data, data.events || [
       {
-        name: `${(data.sport || 'TABLE_TENNIS').replace(/_/g, ' ')} Open`,
+        name: `${(data.sport || 'TABLE_TENNIS').replace(/_/g, ' ')} Championship`,
         sport: data.sport || 'TABLE_TENNIS',
         format: data.format || 'GROUPS_KNOCKOUT',
         category: 'Open',
@@ -469,7 +580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ]);
   }, [addTournament]);
 
-  const generateDraw = useCallback((eventId: string, format: TournamentFormat) => {
+  const generateDraw = useCallback(async (eventId: string, format: TournamentFormat) => {
     const ev = events.find(e => e.id === eventId);
     if (!ev) return;
 
@@ -486,7 +597,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } else if (format === 'KNOCKOUT') {
       generatedMatches = generateKnockoutBracket(ev.tournamentId, ev.id, ev.sport, eventParticipants);
     } else if (format === 'GROUPS_KNOCKOUT') {
-      // Divide into Group A and Group B
       const mid = Math.ceil(eventParticipants.length / 2);
       const groupA = eventParticipants.slice(0, mid).map(p => ({ ...p, groupName: 'Group A' }));
       const groupB = eventParticipants.slice(mid).map(p => ({ ...p, groupName: 'Group B' }));
@@ -496,16 +606,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       generatedMatches = [...fixturesA, ...fixturesB];
     }
 
-    // Replace or append event matches
     setMatches(prev => {
       const remaining = prev.filter(m => m.eventId !== eventId);
       return [...remaining, ...generatedMatches];
     });
 
-    logAction('DRAW_GENERATED', 'TournamentEvent', eventId, `Generated ${format} draw for ${ev.name} with ${eventParticipants.length} participants.`);
-  }, [events, participants, logAction]);
+    // Save to Firestore
+    const targetTourney = tournaments.find(t => t.id === ev.tournamentId);
+    if (targetTourney) {
+      await dbService.saveTournamentHierarchy(targetTourney, [ev], undefined, undefined, undefined, undefined, generatedMatches);
+    }
 
-  const assignMatch = useCallback((
+    await logAction('DRAW_GENERATED', 'TournamentEvent', eventId, `Generated ${format} draw for ${ev.name} with ${eventParticipants.length} participants.`);
+  }, [events, participants, tournaments, logAction]);
+
+  const assignMatch = useCallback(async (
     matchId: string,
     resourceId?: string,
     refereeId?: string,
@@ -530,40 +645,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     const nextMatches = matches.map(m => m.id === matchId ? updatedMatch : m);
+    // Real interval-based conflict check
     const conflicts = detectSchedulingConflicts(nextMatches);
 
-    // Apply update
     setMatches(nextMatches);
 
-    // Notify assigned referee
+    // Save to Firestore
+    await dbService.assignMatch(matchId, resourceId, refereeId, date, time);
+
     if (refereeId) {
-      addNotification({
+      await addNotification({
         recipientUserId: 'user-ref-suresh',
         type: 'REFEREE_ASSIGNED',
         title: `Officiating Duty: ${updatedMatch.resourceName || 'Assigned Table'}`,
-        message: `You are assigned to Match #${updatedMatch.matchNumber}: ${updatedMatch.participant1Name} vs ${updatedMatch.participant2Name} at ${updatedMatch.scheduledTime}.`,
+        message: `Assigned to Match #${updatedMatch.matchNumber}: ${updatedMatch.participant1Name} vs ${updatedMatch.participant2Name} at ${updatedMatch.scheduledTime}.`,
         tournamentId: match.tournamentId,
         matchId: match.id
       });
     }
 
-    // Notify player if assigned
     if (updatedMatch.participant1Id || updatedMatch.participant2Id) {
-      addNotification({
+      await addNotification({
         recipientUserId: 'user-player-rahul',
         type: 'MATCH_ASSIGNED',
         title: `Match Scheduled on ${updatedMatch.resourceName}`,
-        message: `Your match #${updatedMatch.matchNumber} is set for ${updatedMatch.scheduledDate} at ${updatedMatch.scheduledTime} on ${updatedMatch.resourceName}.`,
+        message: `Match #${updatedMatch.matchNumber} is scheduled for ${updatedMatch.scheduledDate} at ${updatedMatch.scheduledTime} on ${updatedMatch.resourceName}.`,
         tournamentId: match.tournamentId,
         matchId: match.id
       });
     }
 
-    logAction('MATCH_ASSIGNED', 'Match', matchId, `Assigned Match #${match.matchNumber} to ${updatedMatch.resourceName || 'None'} and Referee ${updatedMatch.refereeName || 'None'} at ${updatedMatch.scheduledTime}`);
+    await logAction('MATCH_ASSIGNED', 'Match', matchId, `Assigned Match #${match.matchNumber} to ${updatedMatch.resourceName || 'None'} and Referee ${updatedMatch.refereeName || 'None'} at ${updatedMatch.scheduledTime}`);
     return { success: true, conflicts };
   }, [matches, resources, referees, addNotification, logAction]);
 
-  const callPlayers = useCallback((matchId: string, leadMinutes: number = 0) => {
+  const callPlayers = useCallback(async (matchId: string, leadMinutes: number = 0) => {
     const match = matches.find(m => m.id === matchId);
     if (!match) return;
 
@@ -571,9 +687,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const callTimeLabel = leadMinutes > 0 ? `in ${leadMinutes} minutes` : `immediately`;
 
     setMatches(prev => prev.map(m => m.id === matchId ? { ...m, status: 'CALLED', calledAt: timeStr } : m));
+    await dbService.updateMatchScore(matchId, match.score, 'CALLED');
 
-    // Send high-priority notification to players & referees
-    addNotification({
+    await addNotification({
       recipientUserId: 'user-player-rahul',
       type: 'MATCH_CALLED',
       title: `Match Call: ${match.participant1Name} vs ${match.participant2Name}`,
@@ -582,41 +698,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       matchId: match.id
     });
 
-    createAnnouncement({
+    await createAnnouncement({
       tournamentId: match.tournamentId,
       title: `Match Call: ${match.participant1Name} vs ${match.participant2Name}`,
-      message: `Match #${match.matchNumber} called to ${match.resourceName || 'court/table'}. Players must report to chief referee.`,
+      message: `Match #${match.matchNumber} called to ${match.resourceName || 'court/table'}. Players please report to chief referee.`,
       authorName: currentUser.name,
       audience: 'ALL',
       priority: 'URGENT',
       isPublic: true
     });
 
-    logAction('PLAYER_CALLED', 'Match', matchId, `Issued player call for Match #${match.matchNumber} on ${match.resourceName || 'Unassigned'}`);
+    await logAction('PLAYER_CALLED', 'Match', matchId, `Issued player call for Match #${match.matchNumber} on ${match.resourceName || 'Unassigned'}`);
   }, [matches, currentUser, addNotification, logAction]);
 
-  const updateMatchScore = useCallback((matchId: string, score: SportScoreData, status?: Match['status']) => {
-    setMatches(prev => {
-      return prev.map(m => {
-        if (m.id !== matchId) return m;
-        const nextStatus = status ?? (m.status === 'SCHEDULED' || m.status === 'READY' || m.status === 'CALLED' ? 'LIVE' : m.status);
-        const updated = {
-          ...m,
-          score,
-          status: nextStatus,
-          startedAt: m.startedAt ?? new Date().toLocaleTimeString()
-        };
-        broadcastEvent('SCORE_UPDATE', updated);
-        return updated;
-      });
-    });
+  const updateMatchScore = useCallback(async (matchId: string, score: SportScoreData, status?: Match['status']) => {
+    const nextStatus = status ?? 'LIVE';
+    setMatches(prev => prev.map(m => {
+      if (m.id !== matchId) return m;
+      return {
+        ...m,
+        score,
+        status: nextStatus,
+        startedAt: m.startedAt ?? new Date().toLocaleTimeString()
+      };
+    }));
+
+    // Persist directly to Firestore
+    await dbService.updateMatchScore(matchId, score, nextStatus);
   }, []);
 
-  const verifyMatchResult = useCallback((matchId: string) => {
+  const submitMatchResult = useCallback(async (matchId: string, result: Omit<MatchResult, 'id'>) => {
+    setMatches(prev => prev.map(m => m.id === matchId ? { ...m, status: 'AWAITING_VERIFICATION', winnerId: result.winnerId } : m));
+    await dbService.submitMatchResult(matchId, result);
+    await logAction('RESULT_SUBMITTED', 'Match', matchId, `Referee submitted result for match ${matchId}. Awaiting official verification.`);
+  }, [logAction]);
+
+  const verifyMatchResult = useCallback(async (matchId: string) => {
     const match = matches.find(m => m.id === matchId);
     if (!match) return;
 
-    // Determine winner based on score
     let winnerId = match.winnerId;
     let s1 = 0;
     let s2 = 0;
@@ -633,112 +753,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const winnerName = winnerId === match.participant1Id ? match.participant1Name : match.participant2Name;
 
-    // Update match state
-    setMatches(prev => {
-      return prev.map(m => {
-        if (m.id === matchId) {
-          return {
-            ...m,
-            status: 'VERIFIED',
-            winnerId,
-            verifiedBy: currentUser.name,
-            verifiedAt: new Date().toLocaleTimeString(),
-            completedAt: m.completedAt ?? new Date().toLocaleTimeString()
-          };
-        }
-
-        // Bracket progression for Knockout matches
-        if (match.bracketPosition?.nextMatchId && m.id === match.bracketPosition.nextMatchId) {
-          if (match.bracketPosition.nextMatchSlot === 1) {
-            return {
-              ...m,
-              participant1Id: winnerId,
-              participant1Name: winnerName
-            };
-          } else {
-            return {
-              ...m,
-              participant2Id: winnerId,
-              participant2Name: winnerName
-            };
-          }
-        }
-
-        return m;
-      });
+    // Advance winner in bracket
+    let updatedMatches = matches.map(m => {
+      if (m.id === matchId) {
+        return {
+          ...m,
+          status: 'VERIFIED' as const,
+          winnerId,
+          verifiedBy: currentUser.name,
+          verifiedAt: new Date().toLocaleTimeString(),
+          completedAt: m.completedAt ?? new Date().toLocaleTimeString()
+        };
+      }
+      return m;
     });
 
-    // Update participant stats & rankings
-    setParticipants(prev => {
-      return prev.map(p => {
-        if (p.id === match.participant1Id) {
-          const isWin = winnerId === p.id;
-          return {
-            ...p,
-            stats: {
-              ...p.stats,
-              matchesPlayed: p.stats.matchesPlayed + 1,
-              wins: p.stats.wins + (isWin ? 1 : 0),
-              losses: p.stats.losses + (isWin ? 0 : 1),
-              scoreFor: p.stats.scoreFor + s1,
-              scoreAgainst: p.stats.scoreAgainst + s2,
-              points: p.stats.points + (isWin ? 2 : 0)
-            }
-          };
-        } else if (p.id === match.participant2Id) {
-          const isWin = winnerId === p.id;
-          return {
-            ...p,
-            stats: {
-              ...p.stats,
-              matchesPlayed: p.stats.matchesPlayed + 1,
-              wins: p.stats.wins + (isWin ? 1 : 0),
-              losses: p.stats.losses + (isWin ? 0 : 1),
-              scoreFor: p.stats.scoreFor + s2,
-              scoreAgainst: p.stats.scoreAgainst + s1,
-              points: p.stats.points + (isWin ? 2 : 0)
-            }
-          };
-        }
-        return p;
-      });
-    });
+    if (winnerId && winnerName) {
+      updatedMatches = advanceWinnerInBracket(updatedMatches, matchId, winnerId, winnerName);
+    }
 
-    // Notify participants
-    addNotification({
+    setMatches(updatedMatches);
+
+    // Persist verified result to Firestore
+    await dbService.verifyMatchResult(matchId, currentUser.id, winnerId);
+
+    // Update player rankings/points
+    if (winnerId) {
+      const winnerPlayer = players.find(p => p.id === winnerId || p.playerId === winnerId);
+      if (winnerPlayer) {
+        await dbService.updatePlayer(winnerPlayer.id, {
+          tournamentPoints: (winnerPlayer.tournamentPoints || 0) + 100,
+          wins: (winnerPlayer.wins || 0) + 1,
+          matchesPlayed: (winnerPlayer.matchesPlayed || 0) + 1
+        });
+      }
+    }
+
+    await addNotification({
       recipientUserId: 'user-player-rahul',
       type: 'RESULT_PUBLISHED',
       title: `Official Result Verified: Match #${match.matchNumber}`,
-      message: `${winnerName} won the match (${s1}-${s2}). Result verified by ${currentUser.name}. Standings and tournament points updated.`,
+      message: `${winnerName || 'Winner'} won the match. Result verified by ${currentUser.name}. Standings and bracket progression updated.`,
       tournamentId: match.tournamentId,
       matchId: match.id
     });
 
-    logAction('MATCH_VERIFIED', 'Match', matchId, `Verified official result for Match #${match.matchNumber}: ${winnerName} won (${s1}-${s2}). Progression & standings updated.`);
-  }, [matches, currentUser, addNotification, logAction]);
+    await logAction('MATCH_VERIFIED', 'Match', matchId, `Verified official result for Match #${match.matchNumber}: ${winnerName} won. Progression & standings updated.`);
+  }, [matches, currentUser, players, addNotification, logAction]);
 
-  const createAnnouncement = useCallback((announcementData: Omit<Announcement, 'id' | 'createdAt'>) => {
-    const newAnn: Announcement = {
-      ...announcementData,
-      id: `ann-${Date.now()}`,
-      createdAt: new Date().toISOString()
-    };
+  const createAnnouncement = useCallback(async (announcementData: Omit<Announcement, 'id' | 'createdAt'>) => {
+    const newAnn = await dbService.createAnnouncement(announcementData);
     setAnnouncements(prev => [newAnn, ...prev]);
-    broadcastEvent('NEW_ANNOUNCEMENT', newAnn);
 
-    // Send web notification to target audience
-    addNotification({
+    await addNotification({
       type: 'TOURNAMENT_ANNOUNCEMENT',
       title: newAnn.title,
       message: newAnn.message,
       tournamentId: newAnn.tournamentId
     });
 
-    logAction('ANNOUNCEMENT_PUBLISHED', 'Announcement', newAnn.id, `Published announcement: "${newAnn.title}" for audience ${newAnn.audience}`);
+    await logAction('ANNOUNCEMENT_PUBLISHED', 'Announcement', newAnn.id, `Published announcement: "${newAnn.title}"`);
   }, [addNotification, logAction]);
 
-  const broadcastAnnouncement = useCallback((data: BroadcastAnnouncementInput) => {
-    createAnnouncement({
+  const broadcastAnnouncement = useCallback(async (data: BroadcastAnnouncementInput) => {
+    await createAnnouncement({
       title: data.title || 'Announcement',
       message: data.content || data.message || '',
       audience: data.target || data.audience || 'ALL',
@@ -747,30 +825,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [createAnnouncement]);
 
-  const markNotificationAsRead = useCallback((id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  }, []);
+  // --- Multi-tenancy Scoping & Selectors ---
 
-  const markAllNotificationsAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-  }, []);
+  const organization = useMemo(() => {
+    return organizations.find(o => o.id === activeOrgId) || organizations[0];
+  }, [organizations, activeOrgId]);
 
-  const activeClub = clubs.find(c => c.id === activeClubId) || clubs[0];
-  const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0];
-  const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
-  const schedulingConflicts = detectSchedulingConflicts(matches);
+  // Scoped clubs based on organization boundary
+  const clubs = useMemo(() => {
+    if (currentUser.currentRole === 'SUPER_ADMIN') {
+      return allClubs;
+    }
+    return allClubs.filter(c => c.orgId === activeOrgId);
+  }, [allClubs, activeOrgId, currentUser.currentRole]);
+
+  const activeClub = useMemo(() => {
+    return clubs.find(c => c.id === activeClubId) || clubs[0] || allClubs[0];
+  }, [clubs, activeClubId, allClubs]);
+
+  // Scoped tournaments based on organization boundary
+  const scopedTournaments = useMemo(() => {
+    if (currentUser.currentRole === 'SUPER_ADMIN') {
+      return tournaments;
+    }
+    return tournaments.filter(t => !t.orgId || t.orgId === activeOrgId);
+  }, [tournaments, activeOrgId, currentUser.currentRole]);
+
+  const activeTournament = useMemo(() => {
+    return scopedTournaments.find(t => t.id === activeTournamentId) || scopedTournaments[0];
+  }, [scopedTournaments, activeTournamentId]);
+
+  const unreadNotificationsCount = useMemo(() => {
+    return notifications.filter(n => !n.isRead).length;
+  }, [notifications]);
+
+  // Conflict detection across matches
+  const schedulingConflicts = useMemo(() => {
+    return detectSchedulingConflicts(matches);
+  }, [matches]);
+
+  // Standings calculation
   const standings = useMemo(() => {
-    return calculateStandings(participants, matches);
-  }, [participants, matches]);
+    const currentEvent = events.find(e => e.tournamentId === activeTournament?.id);
+    return calculateStandings(participants, matches, currentEvent?.rules);
+  }, [participants, matches, events, activeTournament]);
 
   return (
     <AppContext.Provider
       value={{
         currentUser,
-        users,
+        session,
+        users: allUsers,
         switchUser,
         switchRole,
+        login,
+        logout,
+        hasPermission,
+        canAccessOrg,
+        canAccessClub,
+        organizations,
         organization,
+        activeOrgId,
+        setActiveOrgId,
         clubs,
         activeClub,
         setActiveClubId,
@@ -789,7 +905,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markAttendance,
         recordPayment,
         addMembershipPlan,
-        tournaments,
+        tournaments: scopedTournaments,
         activeTournament,
         setActiveTournamentId,
         events,
@@ -804,6 +920,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         assignMatch,
         callPlayers,
         updateMatchScore,
+        submitMatchResult,
         verifyMatchResult,
         schedulingConflicts,
         announcements,
@@ -817,7 +934,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         auditLogs,
         logAction,
         searchQuery,
-        setSearchQuery
+        setSearchQuery,
+        isFirestoreLive
       }}
     >
       {children}

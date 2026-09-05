@@ -1,10 +1,29 @@
+/**
+ * Competition Engine & Domain Hierarchy
+ *
+ * ARCHITECTURAL DESIGN NOTE:
+ * - Fixture: Represents the structural pairing/slot in the competition calendar/draw
+ *   (stage, round, group, scheduled resource, pairing).
+ * - Match: Represents the active execution of a fixture (live point-by-point scoring,
+ *   referee officiating, state transitions, results, and verification).
+ */
+
 import { 
   TournamentFormat, 
   TournamentParticipant, 
   Match, 
+  Fixture,
+  TournamentStage,
+  TournamentRound,
+  TournamentGroup,
+  TournamentEvent,
+  Tournament,
+  MatchResult,
   StandingRow, 
   SportType, 
-  SportRulesConfig 
+  SportRulesConfig,
+  MatchStatus,
+  TieBreakerCriterion
 } from '../types';
 import { initialTTScore } from './sports/tableTennis';
 import { initialBadmintonScore } from './sports/badminton';
@@ -12,7 +31,7 @@ import { initialFootballScore } from './sports/football';
 import { initialCricketScore } from './sports/cricket';
 
 export interface SchedulingConflict {
-  type: 'PLAYER_OVERLAP' | 'REFEREE_OVERLAP' | 'RESOURCE_OVERLAP';
+  type: 'PLAYER_OVERLAP' | 'REFEREE_OVERLAP' | 'RESOURCE_OVERLAP' | 'VENUE_OVERLAP';
   message: string;
   matchIdA: string;
   matchIdB: string;
@@ -35,6 +54,99 @@ export const createInitialScoreForSport = (sport: SportType, p1Id: string = 'p1'
 };
 
 /**
+ * Parses "HH:MM" (24hr or 12hr) into minutes from midnight
+ */
+export const parseTimeToMinutes = (timeStr: string): number => {
+  if (!timeStr) return 0;
+  const parts = timeStr.trim().split(/[: ]/);
+  let hours = parseInt(parts[0], 10) || 0;
+  const minutes = parseInt(parts[1], 10) || 0;
+  const ampm = parts[2]?.toUpperCase();
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+};
+
+/**
+ * Real interval-based scheduling conflict detection
+ * Checks for overlaps: startA < endB && startB < endA
+ * Supports configurable buffer time (default 10 minutes)
+ */
+export const detectSchedulingConflicts = (
+  matches: Match[],
+  bufferMinutes: number = 10
+): SchedulingConflict[] => {
+  const conflicts: SchedulingConflict[] = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    for (let j = i + 1; j < matches.length; j++) {
+      const mA = matches[i];
+      const mB = matches[j];
+
+      // Must be on the same calendar date
+      if (mA.scheduledDate !== mB.scheduledDate) continue;
+      if (!mA.scheduledTime || !mB.scheduledTime) continue;
+
+      const startA = parseTimeToMinutes(mA.scheduledTime);
+      const durationA = mA.estimatedDurationMinutes || 30;
+      const endA = startA + durationA + bufferMinutes;
+
+      const startB = parseTimeToMinutes(mB.scheduledTime);
+      const durationB = mB.estimatedDurationMinutes || 30;
+      const endB = startB + durationB + bufferMinutes;
+
+      // Check interval overlap
+      const isOverlapping = startA < endB && startB < endA;
+      if (!isOverlapping) continue;
+
+      const timeSlotA = `${mA.scheduledTime} (${durationA}m)`;
+      const timeSlotB = `${mB.scheduledTime} (${durationB}m)`;
+
+      // 1. Resource Overlap (e.g. Table 1 or Court 2 assigned to both simultaneously)
+      if (mA.resourceId && mB.resourceId && mA.resourceId === mB.resourceId) {
+        conflicts.push({
+          type: 'RESOURCE_OVERLAP',
+          message: `${mA.resourceName || 'Resource'} has an interval conflict between Match #${mA.matchNumber} [${timeSlotA}] and Match #${mB.matchNumber} [${timeSlotB}].`,
+          matchIdA: mA.id,
+          matchIdB: mB.id,
+          resourceOrPersonName: mA.resourceName || 'Resource'
+        });
+      }
+
+      // 2. Referee Overlap
+      if (mA.refereeId && mB.refereeId && mA.refereeId === mB.refereeId) {
+        conflicts.push({
+          type: 'REFEREE_OVERLAP',
+          message: `Referee ${mA.refereeName || 'Referee'} is double-booked between Match #${mA.matchNumber} [${timeSlotA}] and Match #${mB.matchNumber} [${timeSlotB}].`,
+          matchIdA: mA.id,
+          matchIdB: mB.id,
+          resourceOrPersonName: mA.refereeName || 'Referee'
+        });
+      }
+
+      // 3. Player Overlap
+      const playersA = [mA.participant1Id, mA.participant2Id].filter(Boolean) as string[];
+      const playersB = [mB.participant1Id, mB.participant2Id].filter(Boolean) as string[];
+
+      for (const p of playersA) {
+        if (playersB.includes(p)) {
+          const playerName = p === mA.participant1Id ? mA.participant1Name : mA.participant2Name;
+          conflicts.push({
+            type: 'PLAYER_OVERLAP',
+            message: `Player "${playerName}" is scheduled in overlapping matches: #${mA.matchNumber} [${timeSlotA}] and #${mB.matchNumber} [${timeSlotB}].`,
+            matchIdA: mA.id,
+            matchIdB: mB.id,
+            resourceOrPersonName: playerName || 'Player'
+          });
+        }
+      }
+    }
+  }
+
+  return conflicts;
+};
+
+/**
  * Generate Round Robin fixtures for a list of participants
  */
 export const generateRoundRobinFixtures = (
@@ -42,12 +154,13 @@ export const generateRoundRobinFixtures = (
   eventId: string,
   sport: SportType,
   participants: TournamentParticipant[],
-  groupName?: string
+  groupName?: string,
+  stageId?: string,
+  groupId?: string
 ): Match[] => {
   if (participants.length < 2) return [];
 
   const list = [...participants];
-  // If odd, add a dummy BYE participant
   const hasBye = list.length % 2 !== 0;
   if (hasBye) {
     list.push({
@@ -72,11 +185,16 @@ export const generateRoundRobinFixtures = (
       const p1 = list[i];
       const p2 = list[n - 1 - i];
 
-      // Skip bye matches
       if (p1.id === 'BYE' || p2.id === 'BYE') continue;
 
+      const fixtureId = `fix-${eventId}-${groupName ? groupName.replace(/\s+/g, '') + '-' : ''}${matchNumber}`;
+      const matchId = `match-${eventId}-${groupName ? groupName.replace(/\s+/g, '') + '-' : ''}${matchNumber}`;
+
       matches.push({
-        id: `match-${eventId}-${groupName ? groupName.replace(/\s+/g, '') + '-' : ''}${matchNumber}`,
+        id: matchId,
+        fixtureId,
+        stageId,
+        groupId,
         tournamentId,
         eventId,
         stageName: groupName ? `${groupName} Round ${round + 1}` : `Round ${round + 1}`,
@@ -96,7 +214,7 @@ export const generateRoundRobinFixtures = (
       matchNumber++;
     }
 
-    // Rotate elements except index 0 (Circle method)
+    // Circle method rotation
     const fixed = list[0];
     const rest = list.slice(1);
     const last = rest.pop()!;
@@ -114,21 +232,18 @@ export const generateKnockoutBracket = (
   tournamentId: string,
   eventId: string,
   sport: SportType,
-  participants: TournamentParticipant[]
+  participants: TournamentParticipant[],
+  stageId?: string
 ): Match[] => {
   const count = participants.length;
   if (count < 2) return [];
 
-  // Determine bracket size: power of 2 (2, 4, 8, 16, 32)
   let bracketSize = 2;
   while (bracketSize < count) {
     bracketSize *= 2;
   }
 
-  // Sort participants by seed (or rating)
   const sorted = [...participants].sort((a, b) => (a.seed ?? 999) - (b.seed ?? 999));
-
-  // Build standard seeded pairings
   const seedsOrder: number[] = getSeededOrder(bracketSize);
   const slots: (TournamentParticipant | null)[] = new Array(bracketSize).fill(null);
 
@@ -143,16 +258,19 @@ export const generateKnockoutBracket = (
   let matchCounter = 1;
   const totalRounds = Math.log2(bracketSize);
 
-  // Round 1 matches
   const round1Matches: Match[] = [];
   const round1Name = getRoundName(bracketSize, 0);
 
   for (let i = 0; i < bracketSize; i += 2) {
     const p1 = slots[i];
     const p2 = slots[i + 1];
+    const matchId = `ko-${eventId}-r0-m${i / 2}`;
+    const fixtureId = `fix-${eventId}-r0-m${i / 2}`;
 
     const match: Match = {
-      id: `ko-${eventId}-r0-m${i / 2}`,
+      id: matchId,
+      fixtureId,
+      stageId,
       tournamentId,
       eventId,
       stageName: round1Name,
@@ -163,7 +281,7 @@ export const generateKnockoutBracket = (
       participant1Name: p1?.displayName ?? 'TBD',
       participant2Name: p2?.displayName ?? 'TBD',
       status: p1 && !p2 ? 'COMPLETED' : 'SCHEDULED',
-      winnerId: p1 && !p2 ? p1.id : undefined, // Automatic BYE advancement
+      winnerId: p1 && !p2 ? p1.id : undefined,
       scheduledDate: '2026-09-06',
       scheduledTime: '11:00',
       estimatedDurationMinutes: sport === 'FOOTBALL' ? 90 : 30,
@@ -186,12 +304,15 @@ export const generateKnockoutBracket = (
 
     for (let m = 0; m < roundMatchesCount; m++) {
       const matchId = `ko-${eventId}-r${r}-m${m}`;
+      const fixtureId = `fix-${eventId}-r${r}-m${m}`;
       const isFinal = r === totalRounds - 1;
       const nextRound = r + 1;
       const nextMatchIndex = Math.floor(m / 2);
 
       matches.push({
         id: matchId,
+        fixtureId,
+        stageId,
         tournamentId,
         eventId,
         stageName: roundName,
@@ -216,7 +337,7 @@ export const generateKnockoutBracket = (
     }
   }
 
-  // Fill in automatic byes for Round 2
+  // Populate byes into next round
   for (const r1 of round1Matches) {
     if (r1.winnerId && r1.bracketPosition?.nextMatchId) {
       const targetMatch = matches.find(m => m.id === r1.bracketPosition!.nextMatchId);
@@ -233,6 +354,41 @@ export const generateKnockoutBracket = (
   }
 
   return matches;
+};
+
+/**
+ * Advances the verified winner of a completed match to the subsequent bracket match slot
+ */
+export const advanceWinnerInBracket = (
+  matches: Match[],
+  completedMatchId: string,
+  winnerId: string,
+  winnerName: string
+): Match[] => {
+  const current = matches.find(m => m.id === completedMatchId);
+  if (!current || !current.bracketPosition?.nextMatchId) {
+    return matches;
+  }
+
+  const nextId = current.bracketPosition.nextMatchId;
+  const slot = current.bracketPosition.nextMatchSlot;
+
+  return matches.map(m => {
+    if (m.id !== nextId) return m;
+    const updated = { ...m };
+    if (slot === 1) {
+      updated.participant1Id = winnerId;
+      updated.participant1Name = winnerName;
+    } else {
+      updated.participant2Id = winnerId;
+      updated.participant2Name = winnerName;
+    }
+    // If both slots are now filled, mark ready
+    if (updated.participant1Id && updated.participant2Id) {
+      updated.status = 'READY';
+    }
+    return updated;
+  });
 };
 
 const getRoundName = (bracketSize: number, roundIndex: number): string => {
@@ -260,7 +416,7 @@ const getSeededOrder = (size: number): number[] => {
 };
 
 /**
- * Calculate Standings for Round Robin groups
+ * Calculate Standings using sport-specific rules and configured tie-breaker priorities
  */
 export const calculateStandings = (
   participants: TournamentParticipant[],
@@ -320,18 +476,18 @@ export const calculateStandings = (
     row1.scoreFor += s1;
     row1.scoreAgainst += s2;
     row1.scoreDiff = row1.scoreFor - row1.scoreAgainst;
-    row1.setsWon = row1.scoreFor;
-    row1.setsLost = row1.scoreAgainst;
-    row1.setDifference = row1.scoreDiff;
+    row1.setsWon = (row1.setsWon || 0) + s1;
+    row1.setsLost = (row1.setsLost || 0) + s2;
+    row1.setDifference = row1.setsWon - row1.setsLost;
 
     row2.scoreFor += s2;
     row2.scoreAgainst += s1;
     row2.scoreDiff = row2.scoreFor - row2.scoreAgainst;
-    row2.setsWon = row2.scoreFor;
-    row2.setsLost = row2.scoreAgainst;
-    row2.setDifference = row2.scoreDiff;
+    row2.setsWon = (row2.setsWon || 0) + s2;
+    row2.setsLost = (row2.setsLost || 0) + s1;
+    row2.setDifference = row2.setsWon - row2.setsLost;
 
-    const winPoints = rules?.pointsForWin ?? 2;
+    const winPoints = rules?.pointsForWin ?? (rules?.sport === 'FOOTBALL' ? 3 : 2);
     const drawPoints = rules?.pointsForDraw ?? 1;
     const lossPoints = rules?.pointsForLoss ?? 0;
 
@@ -353,74 +509,30 @@ export const calculateStandings = (
     }
   }
 
+  // Sort based on rules priority or default sports hierarchy
+  const tieBreakers: (TieBreakerCriterion | string)[] = rules?.tieBreakerPriority && rules.tieBreakerPriority.length > 0
+    ? rules.tieBreakerPriority
+    : ['POINTS', 'SETS_DIFFERENCE', 'POINTS_DIFFERENCE'];
+
   const rows = Array.from(statsMap.values()).sort((a, b) => {
-    // 1. Points
+    for (const criterion of tieBreakers) {
+      if (criterion === 'POINTS' && b.points !== a.points) {
+        return b.points - a.points;
+      }
+      if ((criterion === 'SETS_DIFFERENCE' || criterion === 'GAMES_DIFF') && (b.setDifference ?? 0) !== (a.setDifference ?? 0)) {
+        return (b.setDifference ?? 0) - (a.setDifference ?? 0);
+      }
+      if ((criterion === 'POINTS_DIFFERENCE' || criterion === 'GOAL_DIFFERENCE') && b.scoreDiff !== a.scoreDiff) {
+        return b.scoreDiff - a.scoreDiff;
+      }
+      if (criterion === 'GOALS_SCORED' && b.scoreFor !== a.scoreFor) {
+        return b.scoreFor - a.scoreFor;
+      }
+    }
+    // Fallback: points then score difference
     if (b.points !== a.points) return b.points - a.points;
-    // 2. Score Difference
-    if (b.scoreDiff !== a.scoreDiff) return b.scoreDiff - a.scoreDiff;
-    // 3. Score For
-    return b.scoreFor - a.scoreFor;
+    return b.scoreDiff - a.scoreDiff;
   });
 
   return rows.map((r, idx) => ({ ...r, rank: idx + 1 }));
-};
-
-/**
- * Detect scheduling conflicts
- */
-export const detectSchedulingConflicts = (matches: Match[]): SchedulingConflict[] => {
-  const conflicts: SchedulingConflict[] = [];
-
-  for (let i = 0; i < matches.length; i++) {
-    for (let j = i + 1; j < matches.length; j++) {
-      const mA = matches[i];
-      const mB = matches[j];
-
-      // Only check if scheduled on the same date and same time
-      if (mA.scheduledDate !== mB.scheduledDate || mA.scheduledTime !== mB.scheduledTime) {
-        continue;
-      }
-
-      // 1. Resource Overlap (e.g. Table 1 assigned to both)
-      if (mA.resourceId && mB.resourceId && mA.resourceId === mB.resourceId) {
-        conflicts.push({
-          type: 'RESOURCE_OVERLAP',
-          message: `${mA.resourceName || 'Resource'} is assigned to Match #${mA.matchNumber} and Match #${mB.matchNumber} at ${mA.scheduledTime}`,
-          matchIdA: mA.id,
-          matchIdB: mB.id,
-          resourceOrPersonName: mA.resourceName || 'Resource'
-        });
-      }
-
-      // 2. Referee Overlap
-      if (mA.refereeId && mB.refereeId && mA.refereeId === mB.refereeId) {
-        conflicts.push({
-          type: 'REFEREE_OVERLAP',
-          message: `Referee ${mA.refereeName || 'Referee'} is assigned to both Match #${mA.matchNumber} and Match #${mB.matchNumber} at ${mA.scheduledTime}`,
-          matchIdA: mA.id,
-          matchIdB: mB.id,
-          resourceOrPersonName: mA.refereeName || 'Referee'
-        });
-      }
-
-      // 3. Player Overlap
-      const playersA = [mA.participant1Id, mA.participant2Id].filter(Boolean);
-      const playersB = [mB.participant1Id, mB.participant2Id].filter(Boolean);
-
-      for (const p of playersA) {
-        if (playersB.includes(p)) {
-          const playerName = p === mA.participant1Id ? mA.participant1Name : mA.participant2Name;
-          conflicts.push({
-            type: 'PLAYER_OVERLAP',
-            message: `Player ${playerName} is scheduled in overlapping matches #${mA.matchNumber} and #${mB.matchNumber} at ${mA.scheduledTime}`,
-            matchIdA: mA.id,
-            matchIdB: mB.id,
-            resourceOrPersonName: playerName || 'Player'
-          });
-        }
-      }
-    }
-  }
-
-  return conflicts;
 };

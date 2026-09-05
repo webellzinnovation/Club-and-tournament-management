@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { UserCheck, ShieldCheck, Search, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { UserCheck, ShieldCheck, Search, CheckCircle2, AlertCircle, X, KeyRound, Smartphone, Mail, Award } from 'lucide-react';
 
 interface ClaimProfileModalProps {
   isOpen: boolean;
@@ -11,6 +11,9 @@ export const ClaimProfileModal: React.FC<ClaimProfileModalProps> = ({ isOpen, on
   const { players, currentUser, claimPlayerProfile } = useApp();
   const [searchTerm, setSearchTerm] = useState('TT-00184');
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>('TT-00184');
+  const [verificationMethod, setVerificationMethod] = useState<'EMAIL_OTP' | 'MOBILE_OTP' | 'FEDERATION_ID'>('EMAIL_OTP');
+  const [verificationCode, setVerificationCode] = useState('849201');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   if (!isOpen) return null;
@@ -20,20 +23,28 @@ export const ClaimProfileModal: React.FC<ClaimProfileModalProps> = ({ isOpen, on
     p.playerId.toLowerCase().includes(searchTerm.toLowerCase())
   ).slice(0, 6);
 
-  const handleClaim = () => {
+  const selectedPlayer = players.find(p => p.playerId === selectedPlayerId || p.id === selectedPlayerId);
+
+  const handleClaim = async () => {
     if (!selectedPlayerId) return;
-    const res = claimPlayerProfile(selectedPlayerId);
-    if (res.success) {
-      setFeedback({ type: 'success', message: res.message });
-      setTimeout(() => {
-        onClose();
-      }, 1500);
-    } else {
-      setFeedback({ type: 'error', message: res.message });
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      const res = await claimPlayerProfile(selectedPlayerId, verificationCode, verificationMethod);
+      if (res.success) {
+        setFeedback({ type: 'success', message: res.message });
+        setTimeout(() => {
+          onClose();
+        }, 1600);
+      } else {
+        setFeedback({ type: 'error', message: res.message });
+      }
+    } catch {
+      setFeedback({ type: 'error', message: 'Failed to complete profile verification. Please retry.' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  const selectedPlayer = players.find(p => p.playerId === selectedPlayerId || p.id === selectedPlayerId);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -85,7 +96,7 @@ export const ClaimProfileModal: React.FC<ClaimProfileModalProps> = ({ isOpen, on
           </div>
 
           {/* Results List */}
-          <div className="space-y-1.5 max-h-48 overflow-y-auto border border-neutral-100 rounded-lg p-1.5">
+          <div className="space-y-1.5 max-h-40 overflow-y-auto border border-neutral-100 rounded-lg p-1.5">
             {filteredPlayers.length === 0 ? (
               <div className="p-4 text-center text-xs text-neutral-400">No matching athlete records found.</div>
             ) : (
@@ -120,28 +131,92 @@ export const ClaimProfileModal: React.FC<ClaimProfileModalProps> = ({ isOpen, on
             )}
           </div>
 
-          {/* Preview of Profile to Link */}
+          {/* Verification Method & Code */}
           {selectedPlayer && (
-            <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
-              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block mb-1">
-                Account Link Preview
-              </span>
-              <div className="grid grid-cols-2 gap-2 text-neutral-700">
-                <div>
-                  <span className="text-neutral-400">Logged User:</span>
-                  <p className="font-medium truncate">{currentUser.name} ({currentUser.email})</p>
+            <div className="space-y-3 pt-2 border-t border-neutral-100">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                  Verification Method
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVerificationMethod('EMAIL_OTP')}
+                    className={`p-2 rounded-lg border text-xs flex flex-col items-center gap-1 transition-all ${
+                      verificationMethod === 'EMAIL_OTP'
+                        ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-semibold'
+                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <Mail className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Email OTP</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVerificationMethod('MOBILE_OTP')}
+                    className={`p-2 rounded-lg border text-xs flex flex-col items-center gap-1 transition-all ${
+                      verificationMethod === 'MOBILE_OTP'
+                        ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-semibold'
+                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5 text-blue-600" />
+                    <span>SMS / Mobile</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVerificationMethod('FEDERATION_ID')}
+                    className={`p-2 rounded-lg border text-xs flex flex-col items-center gap-1 transition-all ${
+                      verificationMethod === 'FEDERATION_ID'
+                        ? 'border-blue-600 bg-blue-50/60 text-blue-900 font-semibold'
+                        : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    }`}
+                  >
+                    <Award className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Fed Security PIN</span>
+                  </button>
                 </div>
-                <div>
-                  <span className="text-neutral-400">Permanent Player:</span>
-                  <p className="font-medium">{selectedPlayer.name} ({selectedPlayer.playerId})</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Verification Code or OTP
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3 top-2.5 text-neutral-400" />
+                  <input
+                    id="input-verification-code"
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    placeholder="Enter 6-digit verification code"
+                    className="w-full pl-9 pr-3 py-2 text-xs font-mono font-bold border border-neutral-200 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
                 </div>
-                <div>
-                  <span className="text-neutral-400">Current Rating:</span>
-                  <p className="font-bold text-amber-600">{selectedPlayer.rating} pts</p>
-                </div>
-                <div>
-                  <span className="text-neutral-400">Career Record:</span>
-                  <p className="font-bold text-emerald-600">{selectedPlayer.wins}W / {selectedPlayer.losses}L</p>
+              </div>
+
+              {/* Account Link Preview */}
+              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
+                <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block mb-1">
+                  Target Account Association
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-neutral-700">
+                  <div>
+                    <span className="text-neutral-400">Authenticated User:</span>
+                    <p className="font-medium truncate">{currentUser.name} ({currentUser.email})</p>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400">Player Record:</span>
+                    <p className="font-medium">{selectedPlayer.name} ({selectedPlayer.playerId})</p>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400">Current Rating:</span>
+                    <p className="font-bold text-amber-600">{selectedPlayer.rating} pts</p>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400">Career Record:</span>
+                    <p className="font-bold text-emerald-600">{selectedPlayer.wins}W / {selectedPlayer.losses}L</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -169,10 +244,10 @@ export const ClaimProfileModal: React.FC<ClaimProfileModalProps> = ({ isOpen, on
           <button
             id="btn-confirm-claim"
             onClick={handleClaim}
-            disabled={!selectedPlayerId}
-            className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors"
+            disabled={!selectedPlayerId || isSubmitting}
+            className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors flex items-center gap-1.5"
           >
-            Verify & Link Profile
+            {isSubmitting ? 'Verifying...' : 'Verify & Link Profile'}
           </button>
         </div>
       </div>

@@ -41,14 +41,17 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
   selectedMatchId,
   onNavigate
 }) => {
-  const { matches, updateMatchScore, verifyMatchResult, currentUser } = useApp();
+  const { matches, updateMatchScore, submitMatchResult, verifyMatchResult, currentUser } = useApp();
 
   // Pick match by selectedMatchId, or first LIVE match, or first match
   const activeMatch = matches.find(m => m.id === selectedMatchId) ||
     matches.find(m => m.status === 'LIVE') ||
+    matches.find(m => m.status === 'AWAITING_VERIFICATION') ||
     matches[0];
 
   const [currentMatchId, setCurrentMatchId] = useState<string>(activeMatch?.id || '');
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [showRejectInput, setShowRejectInput] = useState<boolean>(false);
 
   useEffect(() => {
     if (selectedMatchId) setCurrentMatchId(selectedMatchId);
@@ -65,7 +68,36 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
     );
   }
 
-  // --- Table Tennis Scoring Handler ---
+  const isOrganizer = currentUser.currentRole === 'TOURNAMENT_ORGANIZER' || currentUser.currentRole === 'SUPER_ADMIN' || currentUser.currentRole === 'CLUB_OWNER';
+
+  // --- Referee Result Submission ---
+  const handleSubmitForVerification = () => {
+    let winnerId = match.winnerId;
+    if (!winnerId && match.score.sport === 'TABLE_TENNIS') {
+      const s1 = match.score.data.sets.filter(s => s.p1 > s.p2).length;
+      const s2 = match.score.data.sets.filter(s => s.p2 > s.p1).length;
+      winnerId = s1 > s2 ? match.participant1Id : match.participant2Id;
+    }
+    submitMatchResult(match.id, {
+      matchId: match.id,
+      tournamentId: match.tournamentId,
+      eventId: match.eventId,
+      winnerId,
+      score: match.score,
+      recordedBy: currentUser.name,
+      recordedAt: new Date().toISOString(),
+      isOfficial: false
+    });
+  };
+
+  const handleVerify = () => {
+    verifyMatchResult(match.id);
+  };
+
+  const handleReject = () => {
+    updateMatchScore(match.id, match.score, 'LIVE');
+    setShowRejectInput(false);
+  };
   const handleTTPoint = (player: 'p1' | 'p2') => {
     if (match.score.sport !== 'TABLE_TENNIS') return;
     const { updatedScore, matchResult } = addPointTT(
@@ -119,12 +151,6 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
     updateMatchScore(match.id, { sport: 'CRICKET', data: updated }, 'LIVE');
   };
 
-  const handleVerify = () => {
-    verifyMatchResult(match.id);
-  };
-
-  const isOrganizer = currentUser.currentRole === 'TOURNAMENT_ORGANIZER' || currentUser.currentRole === 'SUPER_ADMIN';
-
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* Match Selector Strip */}
@@ -176,33 +202,91 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
               match.status === 'LIVE'
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
                 : match.status === 'VERIFIED'
                 ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                : match.status === 'AWAITING_VERIFICATION'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
                 : match.status === 'COMPLETED'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
                 : 'bg-neutral-800 text-neutral-300'
             }`}>
               <Activity className="w-3.5 h-3.5" />
-              <span>{match.status}</span>
+              <span>{match.status.replace(/_/g, ' ')}</span>
             </span>
 
-            {/* Result Verification Button for Organizers */}
-            {(match.status === 'COMPLETED' || match.status === 'LIVE') && (
+            {/* Referee Submit for Verification Button */}
+            {(match.status === 'LIVE' || match.status === 'COMPLETED') && (
               <button
-                id="btn-verify-match-result"
-                onClick={handleVerify}
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                id="btn-submit-verification"
+                onClick={handleSubmitForVerification}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                title="Referee submits official score sheet for organizer verification"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Verify Official Result</span>
+                <Award className="w-4 h-4" />
+                <span>Submit for Verification</span>
               </button>
+            )}
+
+            {/* Result Verification Button for Organizers */}
+            {(match.status === 'AWAITING_VERIFICATION' || match.status === 'COMPLETED') && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  id="btn-verify-match-result"
+                  onClick={handleVerify}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs flex items-center gap-1.5 transition-colors shadow-xs"
+                  title="Sign off official result and update standings / progression"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Verify Official Result</span>
+                </button>
+                <button
+                  id="btn-reject-match-result"
+                  onClick={handleReject}
+                  className="px-2.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-medium text-xs transition-colors"
+                  title="Return to referee for score correction"
+                >
+                  Return to Referee
+                </button>
+              </div>
             )}
           </div>
         </div>
+
+        {/* Verification Alert Banner if Awaiting */}
+        {match.status === 'AWAITING_VERIFICATION' && (
+          <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                Referee has submitted scores. Result is <strong>AWAITING OFFICIAL VERIFICATION</strong> before updating tournament standings & bracket progression.
+              </span>
+            </div>
+            {isOrganizer && (
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-400 text-neutral-950 px-2 py-0.5 rounded">
+                Organizer Action Required
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Verification Success Banner if Verified */}
+        {match.status === 'VERIFIED' && (
+          <div className="mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                Official result verified by <strong>{match.verifiedBy || 'Tournament Official'}</strong> at {match.verifiedAt || match.completedAt}. Winner advanced in bracket; standings and player points updated.
+              </span>
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500 text-neutral-950 px-2 py-0.5 rounded">
+              Official & Locked
+            </span>
+          </div>
+        )}
 
         {/* ----------------- TABLE TENNIS SCORING UI ----------------- */}
         {match.score.sport === 'TABLE_TENNIS' && (

@@ -1,0 +1,257 @@
+{
+  "entities": {
+    "User": {
+      "collection": "users",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string", "optional": true },
+        "roles": { "type": "array" },
+        "currentRole": { "type": "string" },
+        "orgId": { "type": "string" },
+        "avatarUrl": { "type": "string", "optional": true },
+        "linkedPlayerId": { "type": "string", "optional": true }
+      }
+    },
+    "Organization": {
+      "collection": "organizations",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "tier": { "type": "string" },
+        "activeClubs": { "type": "number" },
+        "activeTournaments": { "type": "number" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "OrganizationMembership": {
+      "collection": "organization_memberships",
+      "fields": {
+        "id": { "type": "string" },
+        "orgId": { "type": "string" },
+        "userId": { "type": "string" },
+        "roles": { "type": "array" },
+        "status": { "type": "string" },
+        "joinedAt": { "type": "string" }
+      }
+    },
+    "PlayerProfile": {
+      "collection": "players",
+      "fields": {
+        "id": { "type": "string" },
+        "playerId": { "type": "string" },
+        "name": { "type": "string" },
+        "dateOfBirth": { "type": "string", "optional": true },
+        "gender": { "type": "string", "optional": true },
+        "mobile": { "type": "string", "optional": true },
+        "email": { "type": "string", "optional": true },
+        "clubId": { "type": "string", "optional": true },
+        "clubName": { "type": "string", "optional": true },
+        "sport": { "type": "string" },
+        "status": { "type": "string" },
+        "rating": { "type": "number" },
+        "tournamentPoints": { "type": "number" },
+        "rankings": { "type": "map" },
+        "matchesPlayed": { "type": "number" },
+        "wins": { "type": "number" },
+        "losses": { "type": "number" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "PlayerAccountLink": {
+      "collection": "player_account_links",
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "playerId": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "claimedAt": { "type": "string" },
+        "verificationMethod": { "type": "string", "optional": true }
+      }
+    },
+    "Club": {
+      "collection": "clubs",
+      "fields": {
+        "id": { "type": "string" },
+        "orgId": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "city": { "type": "string" },
+        "address": { "type": "string" },
+        "sportsSupported": { "type": "array" }
+      }
+    },
+    "Coach": {
+      "collection": "coaches",
+      "fields": {
+        "id": { "type": "string" },
+        "clubId": { "type": "string" },
+        "name": { "type": "string" },
+        "sport": { "type": "string" },
+        "specialization": { "type": "string" }
+      }
+    },
+    "Batch": {
+      "collection": "batches",
+      "fields": {
+        "id": { "type": "string" },
+        "clubId": { "type": "string" },
+        "name": { "type": "string" },
+        "sport": { "type": "string" },
+        "coachId": { "type": "string" },
+        "timing": { "type": "string" },
+        "days": { "type": "array" },
+        "playerIds": { "type": "array" }
+      }
+    },
+    "Tournament": {
+      "collection": "tournaments",
+      "fields": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "sport": { "type": "string" },
+        "orgId": { "type": "string" },
+        "status": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "venueName": { "type": "string" },
+        "city": { "type": "string" },
+        "isPublic": { "type": "boolean" }
+      }
+    },
+    "TournamentEvent": {
+      "collection": "tournament_events",
+      "fields": {
+        "id": { "type": "string" },
+        "tournamentId": { "type": "string" },
+        "name": { "type": "string" },
+        "sport": { "type": "string" },
+        "format": { "type": "string" },
+        "category": { "type": "string" },
+        "participantIds": { "type": "array" },
+        "rules": { "type": "map" },
+        "status": { "type": "string" }
+      }
+    },
+    "TournamentStage": {
+      "collection": "tournament_stages",
+      "fields": {
+        "id": { "type": "string" },
+        "eventId": { "type": "string" },
+        "name": { "type": "string" },
+        "stageType": { "type": "string" },
+        "order": { "type": "number" }
+      }
+    },
+    "TournamentRound": {
+      "collection": "tournament_rounds",
+      "fields": {
+        "id": { "type": "string" },
+        "eventId": { "type": "string" },
+        "roundNumber": { "type": "number" },
+        "name": { "type": "string" }
+      }
+    },
+    "TournamentGroup": {
+      "collection": "tournament_groups",
+      "fields": {
+        "id": { "type": "string" },
+        "eventId": { "type": "string" },
+        "name": { "type": "string" },
+        "participantIds": { "type": "array" }
+      }
+    },
+    "TournamentParticipant": {
+      "collection": "tournament_participants",
+      "fields": {
+        "id": { "type": "string" },
+        "eventId": { "type": "string" },
+        "primaryPlayerId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "stats": { "type": "map" }
+      }
+    },
+    "Match": {
+      "collection": "matches",
+      "fields": {
+        "id": { "type": "string" },
+        "tournamentId": { "type": "string" },
+        "eventId": { "type": "string" },
+        "stageName": { "type": "string" },
+        "roundNumber": { "type": "number" },
+        "matchNumber": { "type": "number" },
+        "status": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "scheduledTime": { "type": "string" },
+        "score": { "type": "map" }
+      }
+    },
+    "MatchResult": {
+      "collection": "match_results",
+      "fields": {
+        "id": { "type": "string" },
+        "matchId": { "type": "string" },
+        "winnerId": { "type": "string", "optional": true },
+        "isOfficial": { "type": "boolean" },
+        "score": { "type": "map" }
+      }
+    },
+    "CompetitionResource": {
+      "collection": "competition_resources",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "sport": { "type": "string" },
+        "type": { "type": "string" },
+        "venueName": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "Referee": {
+      "collection": "referees",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "sport": { "type": "string" },
+        "certificationLevel": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "Announcement": {
+      "collection": "announcements",
+      "fields": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "priority": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "WebNotification": {
+      "collection": "notifications",
+      "fields": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "AuditLog": {
+      "collection": "audit_logs",
+      "fields": {
+        "id": { "type": "string" },
+        "actor": { "type": "string" },
+        "action": { "type": "string" },
+        "entity": { "type": "string" },
+        "entityId": { "type": "string" },
+        "timestamp": { "type": "string" }
+      }
+    }
+  }
+}

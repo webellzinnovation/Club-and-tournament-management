@@ -93,10 +93,13 @@ export interface PlayerProfile {
 export type Player = PlayerProfile;
 
 export interface PlayerAccountLink {
+  id: string;
   userId: string;
   playerId: string;
   isVerified: boolean;
   claimedAt: string;
+  verificationMethod?: 'EMAIL_OTP' | 'MOBILE_OTP' | 'FEDERATION_ID';
+  verifiedValue?: string;
 }
 
 export interface Organization {
@@ -409,6 +412,10 @@ export interface Match {
   id: string;
   tournamentId: string;
   eventId: string;
+  fixtureId?: string;
+  stageId?: string;
+  roundId?: string;
+  groupId?: string;
   stageName: string; // e.g. "Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"
   roundNumber: number;
   matchNumber: number;
