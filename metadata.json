@@ -1,0 +1,6 @@
+{
+  "name": "SportOS - Club & Multi-Sport Tournament Platform",
+  "description": "Enterprise-grade SaaS operating system for sports clubs, athlete identity, coach training, and multi-sport tournament management with generic competition engine.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
