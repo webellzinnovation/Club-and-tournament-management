@@ -10,8 +10,16 @@ import {
   Trophy,
   CheckCircle2,
   ArrowUpRight,
-  TrendingUp
+  TrendingUp,
+  Clock,
+  Sparkles,
+  Building
 } from 'lucide-react';
+import { StatCard } from '../ui/StatCard';
+import { DashboardSection } from '../ui/DashboardSection';
+import { StatusBadge } from '../ui/StatusBadge';
+import { Button, PrimaryButton } from '../ui/Button';
+import { EmptyState } from '../ui/EmptyState';
 
 interface ClubOwnerDashboardProps {
   onNavigate: (view: string) => void;
@@ -26,6 +34,7 @@ export const ClubOwnerDashboard: React.FC<ClubOwnerDashboardProps> = ({ onNaviga
   const [newPlayerCategory, setNewPlayerCategory] = useState('Open');
   const [newPlayerHand, setNewPlayerHand] = useState<'RIGHT' | 'LEFT'>('RIGHT');
   const [newPlayerStyle, setNewPlayerStyle] = useState('Offensive');
+  const [batchTab, setBatchTab] = useState('all');
 
   const clubPlayers = players.filter(p => p.clubId === activeClub.id);
   const clubCoaches = coaches.filter(c => c.clubId === activeClub.id);
@@ -49,235 +58,243 @@ export const ClubOwnerDashboard: React.FC<ClubOwnerDashboardProps> = ({ onNaviga
   };
 
   return (
-    <div className="space-y-6">
-      {/* Club Banner */}
-      <div className="bg-white rounded-2xl p-6 border border-neutral-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+    <div className="space-y-7">
+      {/* 1. Club Identity Header Banner */}
+      <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
+        <div className="space-y-1.5 max-w-xl">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold tracking-wider uppercase">
-              Club Management
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[10px] font-bold tracking-wider uppercase">
+              Club Workspace
             </span>
-            <span className="text-xs text-neutral-400">Code: {activeClub.code}</span>
+            <span className="text-xs text-slate-400 font-medium">Club Code: {activeClub.code}</span>
           </div>
-          <h1 className="text-xl font-bold text-neutral-900 mt-1">{activeClub.name}</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">{activeClub.address} • {activeClub.city}</p>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            {activeClub.name}
+          </h2>
+          <p className="text-xs text-slate-500 font-medium leading-relaxed">
+            {activeClub.address} • {activeClub.city} • Affiliated Academy
+          </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            id="btn-quick-add-player"
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowAddPlayerModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+            icon={<Plus className="w-3.5 h-3.5" />}
           >
-            <Plus className="w-4 h-4 text-amber-400" />
-            <span>Add Player</span>
-          </button>
-          <button
-            id="btn-club-create-tournament"
+            Enroll Athlete
+          </Button>
+          <PrimaryButton
+            size="sm"
             onClick={onOpenWizard}
-            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+            icon={<Trophy className="w-3.5 h-3.5" />}
           >
-            <Trophy className="w-4 h-4" />
-            <span>Host Club Tournament</span>
-          </button>
+            Host Club Event
+          </PrimaryButton>
         </div>
       </div>
 
-      {/* Metric Cards */}
+      {/* 2. Key Metrics Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-neutral-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-500 text-xs">
-            <span>Enrolled Athletes</span>
-            <Users className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-2xl font-bold text-neutral-900 mt-2">{clubPlayers.length}</div>
-          <div className="text-[11px] text-neutral-500 mt-1">Permanent IDs assigned</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-neutral-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-500 text-xs">
-            <span>Active Batches</span>
-            <CalendarDays className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold text-neutral-900 mt-2">{clubBatches.length}</div>
-          <div className="text-[11px] text-neutral-500 mt-1">{clubCoaches.length} coaches assigned</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-neutral-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-500 text-xs">
-            <span>Today's Attendance</span>
-            <ClipboardList className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold text-neutral-900 mt-2">92%</div>
-          <div className="text-[11px] text-emerald-600 font-medium mt-1">Morning Squad completed</div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl border border-neutral-200/80 shadow-xs">
-          <div className="flex items-center justify-between text-neutral-500 text-xs">
-            <span>Fees Collected</span>
-            <CreditCard className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="text-2xl font-bold text-neutral-900 mt-2">₹{(totalRevenue / 1000).toFixed(1)}k</div>
-          <div className="text-[11px] text-neutral-500 mt-1">Subscriptions & entries</div>
-        </div>
+        <StatCard
+          title="Club Athletes"
+          value={clubPlayers.length}
+          subtitle="Enrolled members"
+          icon={Users}
+          iconColor="text-blue-600"
+          bgColor="bg-blue-50"
+          onClick={() => onNavigate('players')}
+        />
+        <StatCard
+          title="Active Batches"
+          value={clubBatches.length}
+          subtitle="Training programs"
+          icon={CalendarDays}
+          iconColor="text-emerald-600"
+          bgColor="bg-emerald-50"
+          onClick={() => onNavigate('batches')}
+        />
+        <StatCard
+          title="Coaching Staff"
+          value={clubCoaches.length}
+          subtitle="Certified instructors"
+          icon={UserSquare2}
+          iconColor="text-purple-600"
+          bgColor="bg-purple-50"
+          onClick={() => onNavigate('coaches')}
+        />
+        <StatCard
+          title="Monthly Collections"
+          value={`₹${totalRevenue.toLocaleString()}`}
+          subtitle="Active subscriptions"
+          icon={CreditCard}
+          iconColor="text-amber-600"
+          bgColor="bg-amber-50"
+          onClick={() => onNavigate('memberships')}
+        />
       </div>
 
-      {/* Split: Batches & Attendance Matrix Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Batches Overview */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-neutral-200/80 p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-neutral-900">Training Batches & Squads</h3>
-              <p className="text-xs text-neutral-500">Coach assignments, timings, and player rosters</p>
-            </div>
-            <button
-              onClick={() => onNavigate('batches')}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-            >
-              Manage Batches →
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {clubBatches.map(b => (
-              <div key={b.id} className="p-3.5 rounded-xl border border-neutral-200 hover:border-neutral-300 transition-colors flex items-center justify-between">
+      {/* 3. Club Training Batches (Cards inspired by reference "My Courses") */}
+      <DashboardSection
+        title="Training Batches & Squads"
+        subtitle="Weekly operational schedules and head count"
+        actionText="Manage all batches →"
+        onAction={() => onNavigate('batches')}
+      >
+        {clubBatches.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {clubBatches.map(batch => (
+              <div
+                key={batch.id}
+                onClick={() => onNavigate('attendance')}
+                className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-xs hover:shadow-md hover:border-slate-300 transition-all cursor-pointer flex flex-col justify-between"
+              >
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-neutral-900">{b.name}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 font-medium">
-                      {b.sport}
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      {batch.startTime} - {batch.endTime}
                     </span>
+                    <StatusBadge status="ACTIVE" size="sm" />
                   </div>
-                  <p className="text-xs text-neutral-500 mt-1">
-                    Coach: <span className="text-neutral-700 font-medium">{b.coachName}</span> • {b.timing} ({b.days.join(', ')})
+
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                    {batch.name}
+                  </h3>
+
+                  <p className="text-xs text-slate-500 mt-1">
+                    Coach: <span className="font-semibold text-slate-700">{batch.coachName || 'Head Coach'}</span>
                   </p>
+
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    {batch.days.slice(0, 3).map(day => (
+                      <span key={day} className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                        {day}
+                      </span>
+                    ))}
+                    {batch.days.length > 3 && (
+                      <span className="text-[10px] text-slate-400 font-medium">+{batch.days.length - 3} days</span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold text-neutral-900">{b.playerIds.length} / {b.maxCapacity}</span>
-                  <p className="text-[10px] text-neutral-400">athletes</p>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs text-slate-500 font-medium">Cap: {batch.capacity} Students</span>
+                  <span className="text-xs font-bold text-emerald-600">Mark Attendance →</span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        ) : (
+          <EmptyState
+            icon={CalendarDays}
+            title="No Batches Configured"
+            description="Create your first training batch to start scheduling student sessions and daily attendance."
+            actionText="Create Training Batch"
+            onAction={() => onNavigate('batches')}
+          />
+        )}
+      </DashboardSection>
 
-        {/* Quick Actions & Membership Plans */}
-        <div className="bg-white rounded-xl border border-neutral-200/80 p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-neutral-900">Membership Plans</h3>
-            <button
-              onClick={() => onNavigate('memberships')}
-              className="text-xs text-blue-600 font-semibold hover:text-blue-800"
+      {/* 4. Enrolled Athletes Roster (Clean, spacious card list) */}
+      <DashboardSection
+        title="Club Athletes & Trainees"
+        subtitle="Recent registered players in your academy"
+        actionText="Full Athlete Roster →"
+        onAction={() => onNavigate('players')}
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {clubPlayers.slice(0, 4).map(player => (
+            <div
+              key={player.id}
+              onClick={() => onNavigate('players')}
+              className="bg-white rounded-2xl p-4 border border-slate-200/70 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col items-center text-center"
             >
-              View Plans →
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {membershipPlans.map(plan => (
-              <div key={plan.id} className="p-3 rounded-lg bg-neutral-50 border border-neutral-100 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-neutral-900">{plan.name}</span>
-                  <span className="font-bold text-neutral-900">₹{plan.price.toLocaleString()}</span>
-                </div>
-                <p className="text-[10px] text-neutral-500 mt-0.5">{plan.billingCycle} • {plan.activeSubscribersCount} active members</p>
+              <img
+                src={player.photoUrl || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80`}
+                alt={player.name}
+                className="w-14 h-14 rounded-full object-cover ring-2 ring-slate-100 mb-2.5"
+                referrerPolicy="no-referrer"
+              />
+              <h4 className="text-sm font-bold text-slate-900 tracking-tight">{player.name}</h4>
+              <p className="text-[11px] text-slate-400 font-medium">ID: {player.permanentId || 'TT-001'}</p>
+              
+              <div className="mt-2.5 flex items-center gap-1.5 flex-wrap justify-center">
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                  {player.category || 'Open'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+                  {player.playingStyle || 'Attacking'}
+                </span>
               </div>
-            ))}
-          </div>
-
-          <div className="mt-5 pt-4 border-t border-neutral-100">
-            <button
-              onClick={() => onNavigate('attendance')}
-              className="w-full py-2 px-3 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <ClipboardList className="w-4 h-4" />
-              <span>Open Daily Attendance Matrix</span>
-            </button>
-          </div>
+            </div>
+          ))}
         </div>
-      </div>
+      </DashboardSection>
 
-      {/* Add Player Quick Modal */}
+      {/* Add Athlete Modal */}
       {showAddPlayerModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-5 border border-neutral-200">
-            <h3 className="text-sm font-bold text-neutral-900 mb-1">Add Athlete to Club</h3>
-            <p className="text-xs text-neutral-500 mb-4">
-              Requires only athlete's Name. Contact info (mobile/email) is completely optional.
-            </p>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Enroll New Club Athlete</h3>
+              <button
+                onClick={() => setShowAddPlayerModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-xs font-semibold"
+              >
+                ✕ Close
+              </button>
+            </div>
 
-            <form onSubmit={handleCreatePlayer} className="space-y-3 text-xs">
+            <form onSubmit={handleCreatePlayer} className="space-y-3.5">
               <div>
-                <label className="block font-semibold text-neutral-700 mb-1">
-                  Athlete Name <span className="text-rose-500">*</span>
-                </label>
+                <label className="block text-xs font-semibold text-slate-700">Athlete Full Name</label>
                 <input
-                  id="input-new-player-name"
                   type="text"
                   required
                   value={newPlayerName}
                   onChange={(e) => setNewPlayerName(e.target.value)}
-                  placeholder="e.g. Ramesh S."
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:border-neutral-900"
+                  placeholder="e.g., Arjun Rao"
+                  className="mt-1 w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Category</label>
+                  <label className="block text-xs font-semibold text-slate-700">Category</label>
                   <select
                     value={newPlayerCategory}
                     onChange={(e) => setNewPlayerCategory(e.target.value)}
-                    className="w-full px-2.5 py-2 border border-neutral-200 rounded-lg focus:outline-none"
+                    className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="Open">Open Men</option>
-                    <option value="Open Women">Open Women</option>
-                    <option value="Under-17">Under-17</option>
-                    <option value="Under-15">Under-15</option>
-                    <option value="Veterans">Veterans (40+)</option>
+                    <option value="Under 15">Under 15</option>
+                    <option value="Under 19">Under 19</option>
+                    <option value="Men Singles">Men Singles</option>
+                    <option value="Women Singles">Women Singles</option>
+                    <option value="Veterans">Veterans</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Playing Hand</label>
+                  <label className="block text-xs font-semibold text-slate-700">Dominant Hand</label>
                   <select
                     value={newPlayerHand}
                     onChange={(e) => setNewPlayerHand(e.target.value as 'RIGHT' | 'LEFT')}
-                    className="w-full px-2.5 py-2 border border-neutral-200 rounded-lg focus:outline-none"
+                    className="mt-1 w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="RIGHT">Right Handed</option>
-                    <option value="LEFT">Left Handed</option>
+                    <option value="RIGHT">Right Hand</option>
+                    <option value="LEFT">Left Hand</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Playing Style</label>
-                <input
-                  type="text"
-                  value={newPlayerStyle}
-                  onChange={(e) => setNewPlayerStyle(e.target.value)}
-                  placeholder="e.g. Offensive Topspin, Chopper, All-round"
-                  className="w-full px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-neutral-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPlayerModal(false)}
-                  className="px-3 py-1.5 rounded-lg border border-neutral-300 text-neutral-700 font-medium hover:bg-neutral-100"
-                >
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <Button variant="ghost" size="sm" type="button" onClick={() => setShowAddPlayerModal(false)}>
                   Cancel
-                </button>
-                <button
-                  id="btn-submit-new-player"
-                  type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-neutral-900 text-white font-semibold hover:bg-neutral-800"
-                >
-                  Create Athlete Profile
-                </button>
+                </Button>
+                <PrimaryButton size="sm" type="submit">
+                  Confirm Enrollment
+                </PrimaryButton>
               </div>
             </form>
           </div>

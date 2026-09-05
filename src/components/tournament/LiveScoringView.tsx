@@ -41,7 +41,7 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
   selectedMatchId,
   onNavigate
 }) => {
-  const { matches, updateMatchScore, submitMatchResult, verifyMatchResult, currentUser } = useApp();
+  const { matches, events, updateMatchScore, submitMatchResult, verifyMatchResult, currentUser } = useApp();
 
   // Pick match by selectedMatchId, or first LIVE match, or first match
   const activeMatch = matches.find(m => m.id === selectedMatchId) ||
@@ -67,6 +67,18 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
       </div>
     );
   }
+
+  const currentEvent = events.find(e => e.id === match.eventId);
+  const isGroupOrRR = match.stageType === 'GROUP' || match.stageType === 'ROUND_ROBIN' || Boolean(match.groupName) || match.stageName?.toLowerCase().includes('group') || match.stageName?.toLowerCase().includes('round');
+  const isChampionship = match.stageName?.toLowerCase().includes('final') || match.stageName?.toLowerCase().includes('semi');
+
+  const resolvedBestOf = match.bestOfSets || (
+    isGroupOrRR
+      ? (currentEvent?.rules?.bestOfGroup ?? currentEvent?.rules?.bestOfSets)
+      : isChampionship
+      ? (currentEvent?.rules?.bestOfFinal ?? currentEvent?.rules?.bestOfKnockout ?? currentEvent?.rules?.bestOfSets)
+      : (currentEvent?.rules?.bestOfKnockout ?? currentEvent?.rules?.bestOfSets)
+  ) || (match.score.sport === 'BADMINTON' ? 3 : 5);
 
   const isOrganizer = currentUser.currentRole === 'TOURNAMENT_ORGANIZER' || currentUser.currentRole === 'SUPER_ADMIN' || currentUser.currentRole === 'CLUB_OWNER';
 
@@ -103,7 +115,7 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
     const { updatedScore, matchResult } = addPointTT(
       match.score.data,
       player,
-      5,
+      resolvedBestOf,
       match.participant1Id || 'p1',
       match.participant2Id || 'p2',
       match.participant1Name,
@@ -126,7 +138,7 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
     const { updatedScore, matchResult } = addPointBadminton(
       match.score.data,
       player,
-      3,
+      resolvedBestOf,
       match.participant1Id || 'p1',
       match.participant2Id || 'p2',
       match.participant1Name,
@@ -193,6 +205,9 @@ export const LiveScoringView: React.FC<LiveScoringViewProps> = ({
               </span>
               <span className="text-xs text-neutral-300 font-medium">
                 {match.stageName} • Match #{match.matchNumber}
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                Best of {resolvedBestOf} ({Math.ceil(resolvedBestOf / 2)} to win)
               </span>
             </div>
             <p className="text-[11px] text-neutral-400 mt-1 flex items-center gap-2">

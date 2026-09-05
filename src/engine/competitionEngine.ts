@@ -156,7 +156,8 @@ export const generateRoundRobinFixtures = (
   participants: TournamentParticipant[],
   groupName?: string,
   stageId?: string,
-  groupId?: string
+  groupId?: string,
+  rules?: SportRulesConfig
 ): Match[] => {
   if (participants.length < 2) return [];
 
@@ -179,6 +180,7 @@ export const generateRoundRobinFixtures = (
   const matchesPerRound = n / 2;
   const matches: Match[] = [];
   let matchNumber = 1;
+  const groupBestOf = rules?.bestOfGroup ?? rules?.bestOfSets ?? (sport === 'BADMINTON' ? 3 : 5);
 
   for (let round = 0; round < totalRounds; round++) {
     for (let i = 0; i < matchesPerRound; i++) {
@@ -195,11 +197,14 @@ export const generateRoundRobinFixtures = (
         fixtureId,
         stageId,
         groupId,
+        stageType: groupName ? 'GROUP' : 'ROUND_ROBIN',
         tournamentId,
         eventId,
         stageName: groupName ? `${groupName} Round ${round + 1}` : `Round ${round + 1}`,
+        roundIndex: round,
         roundNumber: round + 1,
         matchNumber,
+        bestOfSets: groupBestOf,
         participant1Id: p1.id,
         participant2Id: p2.id,
         participant1Name: p1.displayName,
@@ -207,7 +212,7 @@ export const generateRoundRobinFixtures = (
         status: 'SCHEDULED',
         scheduledDate: '2026-09-06',
         scheduledTime: `${10 + Math.floor(matchNumber / 4)}:${(matchNumber % 4) * 15 === 0 ? '00' : (matchNumber % 4) * 15}`,
-        estimatedDurationMinutes: sport === 'FOOTBALL' ? 90 : sport === 'CRICKET' ? 120 : 30,
+        estimatedDurationMinutes: sport === 'FOOTBALL' ? 90 : sport === 'CRICKET' ? 120 : (groupBestOf > 5 ? 45 : 30),
         score: createInitialScoreForSport(sport, p1.id, p2.id),
         groupName
       });
@@ -233,7 +238,8 @@ export const generateKnockoutBracket = (
   eventId: string,
   sport: SportType,
   participants: TournamentParticipant[],
-  stageId?: string
+  stageId?: string,
+  rules?: SportRulesConfig
 ): Match[] => {
   const count = participants.length;
   if (count < 2) return [];
@@ -260,6 +266,10 @@ export const generateKnockoutBracket = (
 
   const round1Matches: Match[] = [];
   const round1Name = getRoundName(bracketSize, 0);
+  const isRound1Championship = (round1Name === 'Final' || round1Name === 'Semi Final');
+  const round1BestOf = isRound1Championship && rules?.bestOfFinal
+    ? rules.bestOfFinal
+    : (rules?.bestOfKnockout ?? rules?.bestOfSets ?? (sport === 'BADMINTON' ? 3 : 5));
 
   for (let i = 0; i < bracketSize; i += 2) {
     const p1 = slots[i];
@@ -271,11 +281,14 @@ export const generateKnockoutBracket = (
       id: matchId,
       fixtureId,
       stageId,
+      stageType: 'KNOCKOUT',
       tournamentId,
       eventId,
       stageName: round1Name,
+      roundIndex: 0,
       roundNumber: 1,
       matchNumber: matchCounter++,
+      bestOfSets: round1BestOf,
       participant1Id: p1?.id,
       participant2Id: p2?.id,
       participant1Name: p1?.displayName ?? 'TBD',
@@ -284,7 +297,7 @@ export const generateKnockoutBracket = (
       winnerId: p1 && !p2 ? p1.id : undefined,
       scheduledDate: '2026-09-06',
       scheduledTime: '11:00',
-      estimatedDurationMinutes: sport === 'FOOTBALL' ? 90 : 30,
+      estimatedDurationMinutes: sport === 'FOOTBALL' ? 90 : (round1BestOf > 5 ? 45 : 30),
       score: createInitialScoreForSport(sport, p1?.id ?? 'p1', p2?.id ?? 'p2'),
       bracketPosition: {
         roundIndex: 0,
@@ -301,11 +314,15 @@ export const generateKnockoutBracket = (
   for (let r = 1; r < totalRounds; r++) {
     const roundMatchesCount = bracketSize / Math.pow(2, r + 1);
     const roundName = getRoundName(bracketSize, r);
+    const isFinal = r === totalRounds - 1;
+    const isSemi = r === totalRounds - 2;
+    const subsequentBestOf = (isFinal || isSemi) && rules?.bestOfFinal
+      ? rules.bestOfFinal
+      : (rules?.bestOfKnockout ?? rules?.bestOfSets ?? (sport === 'BADMINTON' ? 3 : 5));
 
     for (let m = 0; m < roundMatchesCount; m++) {
       const matchId = `ko-${eventId}-r${r}-m${m}`;
       const fixtureId = `fix-${eventId}-r${r}-m${m}`;
-      const isFinal = r === totalRounds - 1;
       const nextRound = r + 1;
       const nextMatchIndex = Math.floor(m / 2);
 
@@ -313,17 +330,20 @@ export const generateKnockoutBracket = (
         id: matchId,
         fixtureId,
         stageId,
+        stageType: 'KNOCKOUT',
         tournamentId,
         eventId,
         stageName: roundName,
+        roundIndex: r,
         roundNumber: r + 1,
         matchNumber: matchCounter++,
+        bestOfSets: subsequentBestOf,
         participant1Name: 'TBD',
         participant2Name: 'TBD',
         status: 'SCHEDULED',
         scheduledDate: '2026-09-07',
         scheduledTime: '14:00',
-        estimatedDurationMinutes: sport === 'FOOTBALL' ? 90 : 35,
+        estimatedDurationMinutes: sport === 'FOOTBALL' ? 90 : (subsequentBestOf > 5 ? 45 : 35),
         score: createInitialScoreForSport(sport),
         bracketPosition: isFinal
           ? { roundIndex: r, matchIndex: m }

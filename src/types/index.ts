@@ -2,7 +2,7 @@ export type SportType = 'TABLE_TENNIS' | 'BADMINTON' | 'CRICKET' | 'FOOTBALL' | 
 
 export type TournamentType = 'ONE_TIME' | 'SEASON';
 
-export type TournamentFormat = 'ROUND_ROBIN' | 'GROUPS_KNOCKOUT' | 'KNOCKOUT';
+export type TournamentFormat = 'ROUND_ROBIN' | 'GROUPS_KNOCKOUT' | 'KNOCKOUT' | 'GROUPS_THEN_KNOCKOUT';
 
 export type UserRole = 
   | 'SUPER_ADMIN'
@@ -57,6 +57,7 @@ export interface UserAccount {
   roles: UserRole[];
   currentRole: UserRole;
   orgId: string;
+  clubId?: string;
   avatarUrl?: string;
   linkedPlayerId?: string;
 }
@@ -115,10 +116,23 @@ export interface Organization {
 export interface OrganizationMembership {
   id: string;
   orgId: string;
+  organizationId?: string; // alias
   userId: string;
+  role?: UserRole;
   roles: UserRole[];
   status: 'ACTIVE' | 'INVITED' | 'SUSPENDED';
   joinedAt: string;
+  createdAt?: string;
+}
+
+export interface ClubMembership {
+  id: string;
+  organizationId: string;
+  clubId: string;
+  userId: string;
+  role: UserRole;
+  status: 'ACTIVE' | 'INVITED' | 'SUSPENDED';
+  createdAt: string;
 }
 
 export interface Club {
@@ -234,8 +248,11 @@ export type TieBreakerCriterion =
 
 export interface SportRulesConfig {
   sport: SportType;
-  // Table Tennis & Badminton
-  bestOfSets?: number; // 1, 3, 5, 7
+  // Table Tennis, Badminton, Tennis
+  bestOfSets?: number; // General default (e.g. 5)
+  bestOfGroup?: number; // Group stage match length (1, 3, 5, 7)
+  bestOfKnockout?: number; // Knockout / main draw match length (1, 3, 5, 7)
+  bestOfFinal?: number; // Semi-Finals & Finals match length (3, 5, 7)
   pointsPerGame?: number; // 11 for TT, 21 for Badminton
   winByMargin?: number; // 2
   maxPointCap?: number; // 30 for Badminton
@@ -265,6 +282,7 @@ export interface TournamentStage {
   name: string; // e.g. "Group Stage", "Knockout Stage"
   stageType: 'GROUP' | 'KNOCKOUT';
   order: number;
+  bestOfSets?: number;
 }
 
 export interface TournamentRound {
@@ -273,6 +291,7 @@ export interface TournamentRound {
   eventId: string;
   roundNumber: number;
   name: string; // e.g. "Round of 16", "Quarter Finals", "Semi Finals", "Final"
+  bestOfSets?: number;
 }
 
 export interface TournamentGroup {
@@ -416,9 +435,12 @@ export interface Match {
   stageId?: string;
   roundId?: string;
   groupId?: string;
+  stageType?: 'GROUP' | 'ROUND_ROBIN' | 'KNOCKOUT';
   stageName: string; // e.g. "Group Stage", "Round of 16", "Quarter Final", "Semi Final", "Final"
+  roundIndex?: number;
   roundNumber: number;
   matchNumber: number;
+  bestOfSets?: number;
   participant1Id?: string;
   participant2Id?: string;
   participant1Name?: string;
@@ -433,6 +455,7 @@ export interface Match {
   resourceId?: string;
   resourceName?: string;
   refereeId?: string;
+  assignedRefereeId?: string;
   refereeName?: string;
   score: SportScoreData;
   calledAt?: string;
@@ -457,7 +480,10 @@ export interface Tournament {
   type: TournamentType;
   sport: SportType;
   orgId: string;
+  organizationId?: string;
   clubId?: string;
+  ownerUserId: string;
+  createdByUserId: string;
   status: 'DRAFT' | 'REGISTRATION' | 'ACTIVE' | 'COMPLETED';
   startDate: string;
   endDate: string;
@@ -568,6 +594,9 @@ export interface CreateTournamentInput {
   bannerUrl?: string;
   isPublic: boolean;
   registrationOpen: boolean;
+  bestOfGroup?: number;
+  bestOfKnockout?: number;
+  bestOfFinal?: number;
   pointsTableConfig?: {
     winnerPoints: number;
     finalistPoints: number;
@@ -591,6 +620,10 @@ export interface BroadcastAnnouncementInput {
 
 export interface AuditLog {
   id: string;
+  organizationId?: string;
+  clubId?: string;
+  tournamentId?: string;
+  actorUserId?: string;
   actor: string;
   actorRole: UserRole;
   action: string;

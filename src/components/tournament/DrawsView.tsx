@@ -26,8 +26,8 @@ export const DrawsView: React.FC<DrawsViewProps> = ({
   const [activeTab, setActiveTab] = useState<'KNOCKOUT' | 'GROUPS'>('KNOCKOUT');
 
   // Filter matches for current tournament
-  const knockoutMatches = matches.filter(m => m.stageType === 'KNOCKOUT');
-  const groupMatches = matches.filter(m => m.stageType === 'ROUND_ROBIN' || m.stageType === 'GROUP');
+  const knockoutMatches = matches.filter(m => m.stageType === 'KNOCKOUT' || (!m.stageType && (m.stageName.includes('Semi') || m.stageName.includes('Final') || m.stageName.includes('Quarter'))));
+  const groupMatches = matches.filter(m => m.stageType === 'ROUND_ROBIN' || m.stageType === 'GROUP' || (!m.stageType && !m.stageName.includes('Semi') && !m.stageName.includes('Final') && !m.stageName.includes('Quarter')));
 
   // Group knockout matches by round index
   const round1Matches = knockoutMatches.filter(m => m.roundIndex === 1 || m.stageName.includes('Quarter'));
@@ -277,7 +277,14 @@ const BracketCard: React.FC<{
       }`}
     >
       <div className="flex items-center justify-between text-[10px] text-neutral-400 pb-2 border-b border-neutral-100">
-        <span className="font-mono font-bold text-neutral-600">Match #{match.matchNumber}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono font-bold text-neutral-600">Match #{match.matchNumber}</span>
+          {match.bestOfSets ? (
+            <span className="px-1.5 py-0.2 rounded font-bold bg-amber-100 text-amber-900 text-[10px]">
+              Bo{match.bestOfSets}
+            </span>
+          ) : null}
+        </div>
         <span className="flex items-center gap-1 text-neutral-700 font-medium">
           <MapPin className="w-3 h-3" />
           {match.resourceName || 'Table TBD'}

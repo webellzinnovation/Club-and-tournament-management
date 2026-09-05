@@ -18,7 +18,9 @@ import {
   FolderKanban,
   History,
   PlusCircle,
-  BarChart3
+  HelpCircle,
+  Headphones,
+  Sparkles
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -32,69 +34,74 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   onOpenWizard
 }) => {
-  const { currentUser, tournaments, activeTournament, setActiveTournamentId, schedulingConflicts } = useApp();
-  const role = currentUser.currentRole;
+  const { currentUser, activeTournament, schedulingConflicts } = useApp();
+  const role = currentUser?.currentRole || 'TOURNAMENT_ORGANIZER';
 
-  // Configure navigation based on current role
+  // Role-specific navigation items (strict least-privilege scoping)
   const getNavItems = () => {
     switch (role) {
       case 'SUPER_ADMIN':
         return [
-          { id: 'dashboard', label: 'Platform Overview', icon: LayoutDashboard },
+          { id: 'dashboard', label: 'Platform', icon: LayoutDashboard },
           { id: 'organizations', label: 'Organizations', icon: FolderKanban },
-          { id: 'clubs', label: 'Clubs Directory', icon: Grid2X2 },
-          { id: 'players', label: 'Global Players', icon: Users },
-          { id: 'tournaments', label: 'All Tournaments', icon: Trophy },
-          { id: 'payments', label: 'Billing & Payments', icon: CreditCard },
-          { id: 'audit_logs', label: 'Audit Logs', icon: History }
+          { id: 'clubs', label: 'Clubs Registry', icon: Grid2X2 },
+          { id: 'players', label: 'Global Athletes', icon: Users },
+          { id: 'tournaments', label: 'Tournaments', icon: Trophy },
+          { id: 'payments', label: 'Platform Billing', icon: CreditCard },
+          { id: 'audit_logs', label: 'Security Audit', icon: History }
         ];
 
       case 'CLUB_OWNER':
         return [
-          { id: 'dashboard', label: 'Club Dashboard', icon: LayoutDashboard },
-          { id: 'players', label: 'Club Athletes', icon: Users },
-          { id: 'coaches', label: 'Coaches & Staff', icon: UserSquare2 },
-          { id: 'batches', label: 'Batches & Timing', icon: CalendarDays },
-          { id: 'attendance', label: 'Attendance Matrix', icon: ClipboardList },
-          { id: 'memberships', label: 'Membership Plans', icon: CreditCard },
-          { id: 'tournaments', label: 'Club Tournaments', icon: Trophy },
-          { id: 'announcements', label: 'Announcements', icon: Megaphone }
+          { id: 'dashboard', label: 'Club Overview', icon: LayoutDashboard },
+          { id: 'players', label: 'My Athletes', icon: Users },
+          { id: 'coaches', label: 'Coaching Staff', icon: UserSquare2 },
+          { id: 'batches', label: 'Batches & Timings', icon: CalendarDays },
+          { id: 'attendance', label: 'Daily Attendance', icon: ClipboardList },
+          { id: 'memberships', label: 'Subscriptions', icon: CreditCard },
+          { id: 'tournaments', label: 'Club Events', icon: Trophy },
+          { id: 'announcements', label: 'Notices', icon: Megaphone }
         ];
 
       case 'COACH':
         return [
-          { id: 'dashboard', label: 'Coaching Overview', icon: LayoutDashboard },
-          { id: 'players', label: 'My Athletes', icon: Users },
-          { id: 'batches', label: 'My Batches', icon: CalendarDays },
+          { id: 'dashboard', label: 'Coaching Hub', icon: LayoutDashboard },
+          { id: 'players', label: 'My Students', icon: Users },
+          { id: 'batches', label: 'Training Batches', icon: CalendarDays },
           { id: 'attendance', label: 'Mark Attendance', icon: ClipboardList },
-          { id: 'tournaments', label: 'Tournament Results', icon: Trophy }
+          { id: 'tournaments', label: 'Competition Results', icon: Trophy }
         ];
 
       case 'PLAYER':
         return [
-          { id: 'dashboard', label: 'Athlete Dashboard', icon: LayoutDashboard },
-          { id: 'my_matches', label: 'My Upcoming Matches', icon: CalendarDays },
-          { id: 'standings', label: 'Rankings & Points', icon: Award },
-          { id: 'memberships', label: 'My Club Membership', icon: CreditCard },
-          { id: 'notifications', label: 'Notifications Center', icon: Bell }
+          { id: 'dashboard', label: 'Athlete Home', icon: LayoutDashboard },
+          { id: 'my_matches', label: 'My Matches', icon: CalendarDays },
+          { id: 'standings', label: 'Points & Rank', icon: Award },
+          { id: 'memberships', label: 'Club Membership', icon: CreditCard },
+          { id: 'announcements', label: 'Club Notices', icon: Megaphone }
         ];
 
       case 'REFEREE':
         return [
-          { id: 'dashboard', label: 'Referee Hub', icon: LayoutDashboard },
-          { id: 'live_scoring', label: 'Touch Live Scoring', icon: Activity },
-          { id: 'standings', label: 'Tournament Standings', icon: Award }
+          { id: 'dashboard', label: 'Referee Desk', icon: LayoutDashboard },
+          { id: 'live_scoring', label: 'Touch Scorer', icon: Activity },
+          { id: 'standings', label: 'Standings', icon: Award }
         ];
 
       case 'TOURNAMENT_ORGANIZER':
       default:
         return [
-          { id: 'dashboard', label: 'Director Dashboard', icon: LayoutDashboard },
-          { id: 'assignments', label: 'Assignments Board', icon: Grid2X2, badge: schedulingConflicts.length ? `${schedulingConflicts.length} alert` : undefined },
+          { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+          {
+            id: 'assignments',
+            label: 'Assignments Board',
+            icon: Grid2X2,
+            badge: schedulingConflicts.length ? `${schedulingConflicts.length}` : undefined
+          },
           { id: 'draws', label: 'Draws & Brackets', icon: Trophy },
-          { id: 'live_scoring', label: 'Live Scoring Console', icon: Activity },
-          { id: 'standings', label: 'Standings & Points', icon: Award },
-          { id: 'players', label: 'Tournament Athletes', icon: Users },
+          { id: 'live_scoring', label: 'Live Scoring', icon: Activity },
+          { id: 'standings', label: 'Points Table', icon: Award },
+          { id: 'players', label: 'Participants', icon: Users },
           { id: 'announcements', label: 'Announcements', icon: Megaphone },
           { id: 'audit_logs', label: 'Operations Audit', icon: History }
         ];
@@ -104,85 +111,79 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = getNavItems();
 
   return (
-    <aside className="w-64 bg-neutral-900 text-neutral-300 flex flex-col shrink-0 min-h-[calc(100vh-4rem)] border-r border-neutral-800">
-      {/* Tournament Context Selector */}
-      <div className="p-4 border-b border-neutral-800">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
-            Active Competition
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-medium">
-            {activeTournament?.sport.replace('_', ' ')}
-          </span>
+    <aside className="w-60 bg-white border-r border-slate-100 flex flex-col shrink-0 min-h-full p-4 justify-between">
+      {/* Top: Brand and Nav Links */}
+      <div className="space-y-6">
+        {/* Brand Logo & Name */}
+        <div className="flex items-center gap-3 px-2">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
+            <Trophy className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <span className="font-extrabold text-slate-900 text-base tracking-tight block">SportOS</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block -mt-0.5">
+              Club & Tournaments
+            </span>
+          </div>
         </div>
-        <select
-          id="select-active-tournament"
-          value={activeTournament?.id}
-          onChange={(e) => setActiveTournamentId(e.target.value)}
-          className="w-full bg-neutral-800 text-white text-xs rounded-lg px-2.5 py-2 border border-neutral-700 focus:outline-none focus:border-amber-500 truncate"
-        >
-          {tournaments.map(t => (
-            <option key={t.id} value={t.id}>
-              {t.title}
-            </option>
-          ))}
-        </select>
 
-        {/* Quick Tournament Creator */}
-        {(role === 'TOURNAMENT_ORGANIZER' || role === 'SUPER_ADMIN' || role === 'CLUB_OWNER') && (
-          <button
-            id="btn-create-tournament-sidebar"
-            onClick={onOpenWizard}
-            className="w-full mt-2.5 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-semibold transition-colors shadow-xs"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>New Tournament Wizard</span>
-          </button>
-        )}
+        {/* Navigation List */}
+        <nav className="space-y-1">
+          <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Workspace
+          </div>
+
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = currentView === item.id;
+            return (
+              <button
+                key={item.id}
+                id={`nav-${item.id}`}
+                onClick={() => onNavigate(item.id)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-150 ${
+                  isActive
+                    ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                  <span className="truncate">{item.label}</span>
+                </div>
+                {item.badge && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    isActive ? 'bg-white text-emerald-700' : 'bg-rose-100 text-rose-700'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      {/* Navigation Links */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        <div className="px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-          {role.replace(/_/g, ' ')} MENU
-        </div>
-        {navItems.map(item => {
-          const Icon = item.icon;
-          const isActive = currentView === item.id;
-          return (
-            <button
-              key={item.id}
-              id={`nav-${item.id}`}
-              onClick={() => onNavigate(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                isActive
-                  ? 'bg-neutral-800 text-white shadow-xs font-semibold border-l-3 border-amber-400 pl-2.5'
-                  : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : 'text-neutral-400'}`} />
-                <span>{item.label}</span>
-              </div>
-              {item.badge && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-900/60 text-rose-300 border border-rose-700">
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
+      {/* Bottom: Contextual Help & Support Widget (Inspired by the reference card) */}
+      <div className="mt-6 pt-4 border-t border-slate-100">
+        <div className="bg-slate-900 rounded-2xl p-4 text-white text-center relative overflow-hidden shadow-sm">
+          <div className="absolute -right-4 -top-4 w-14 h-14 bg-emerald-500/10 rounded-full blur-lg" />
 
-      {/* Bottom Tenant Info */}
-      <div className="p-3 border-t border-neutral-800 text-xs bg-neutral-950/50">
-        <div className="flex items-center justify-between text-neutral-400">
-          <span className="text-[11px]">Tenant Domain:</span>
-          <span className="font-mono text-[10px] text-emerald-400">tn-tt-fed.org</span>
-        </div>
-        <div className="mt-1 flex items-center justify-between text-neutral-500 text-[10px]">
-          <span>Role Scope:</span>
-          <span className="text-neutral-300">{role}</span>
+          <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center mx-auto mb-2 font-bold shadow-xs">
+            <HelpCircle className="w-4 h-4" />
+          </div>
+
+          <h4 className="text-xs font-bold tracking-tight">Need Support?</h4>
+          <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+            Tournament rules, court setups or score sync inquiries
+          </p>
+
+          <button
+            onClick={() => onNavigate('announcements')}
+            className="mt-3 w-full py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold transition-colors"
+          >
+            Help & Guidelines
+          </button>
         </div>
       </div>
     </aside>

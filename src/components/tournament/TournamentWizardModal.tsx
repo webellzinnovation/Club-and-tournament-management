@@ -26,7 +26,11 @@ export const TournamentWizardModal: React.FC<TournamentWizardModalProps> = ({ is
   // Form State
   const [title, setTitle] = useState('');
   const [sport, setSport] = useState<SportType>('TABLE_TENNIS');
-  const [format, setFormat] = useState<TournamentFormat>('GROUPS_THEN_KNOCKOUT');
+  const [format, setFormat] = useState<TournamentFormat>('GROUPS_KNOCKOUT');
+  const [bestOfGroup, setBestOfGroup] = useState<number>(3);
+  const [bestOfKnockout, setBestOfKnockout] = useState<number>(5);
+  const [bestOfFinal, setBestOfFinal] = useState<number>(7);
+  const [extendFinals, setExtendFinals] = useState<boolean>(true);
   const [venueName, setVenueName] = useState('Nehru Indoor Stadium');
   const [city, setCity] = useState('Chennai');
   const [startDate, setStartDate] = useState('2026-09-15');
@@ -34,6 +38,26 @@ export const TournamentWizardModal: React.FC<TournamentWizardModalProps> = ({ is
   const [resourceCount, setResourceCount] = useState(4);
   const [entryFee, setEntryFee] = useState(750);
   const [prizePool, setPrizePool] = useState(50000);
+
+  // Sync default best-of rules when sport changes
+  React.useEffect(() => {
+    if (sport === 'TABLE_TENNIS') {
+      setBestOfGroup(3);
+      setBestOfKnockout(5);
+      setBestOfFinal(7);
+      setExtendFinals(true);
+    } else if (sport === 'BADMINTON') {
+      setBestOfGroup(3);
+      setBestOfKnockout(3);
+      setBestOfFinal(3);
+      setExtendFinals(false);
+    } else {
+      setBestOfGroup(3);
+      setBestOfKnockout(5);
+      setBestOfFinal(5);
+      setExtendFinals(false);
+    }
+  }, [sport]);
 
   if (!isOpen) return null;
 
@@ -47,7 +71,10 @@ export const TournamentWizardModal: React.FC<TournamentWizardModalProps> = ({ is
       startDate,
       endDate,
       entryFee,
-      prizePool
+      prizePool,
+      bestOfGroup,
+      bestOfKnockout,
+      bestOfFinal: extendFinals ? bestOfFinal : bestOfKnockout
     });
     onClose();
   };
@@ -162,43 +189,193 @@ export const TournamentWizardModal: React.FC<TournamentWizardModalProps> = ({ is
           )}
 
           {step === 2 && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="block font-semibold text-neutral-700 mb-2">
+                <label className="block font-semibold text-neutral-800 text-xs uppercase tracking-wider mb-2">
                   Tournament Format Architecture
                 </label>
                 <div className="space-y-2">
                   {[
-                    { id: 'GROUPS_THEN_KNOCKOUT', title: 'Group Stage (Round Robin) + Knockout Bracket', desc: 'ITTF & Olympic standard: pools of 3-4 players, top 2 advance to main draw.' },
-                    { id: 'KNOCKOUT', title: 'Single Elimination Knockout', desc: 'Fast, high-stakes brackets with seeded draws and byes.' },
-                    { id: 'ROUND_ROBIN', title: 'Pure Round Robin League', desc: 'Every participant plays each other; standings decide medal winners.' }
+                    { id: 'GROUPS_KNOCKOUT', title: 'Group Stage (Round Robin) + Knockout Bracket', desc: 'Pools of 3-4 players, top 2 advance to single elimination main draw (Olympic / ITTF standard).' },
+                    { id: 'KNOCKOUT', title: 'Single Elimination Knockout', desc: 'Direct elimination bracket with seeded draws and byes.' },
+                    { id: 'ROUND_ROBIN', title: 'Pure Round Robin League', desc: 'All participants play every opponent; cumulative standings determine podium medals.' }
                   ].map(f => (
                     <div
                       key={f.id}
+                      id={`format-option-${f.id}`}
                       onClick={() => setFormat(f.id as TournamentFormat)}
                       className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                        format === f.id
-                          ? 'border-amber-500 bg-amber-50/40 text-neutral-950'
-                          : 'border-neutral-200 hover:bg-neutral-50'
+                        format === f.id || (f.id === 'GROUPS_KNOCKOUT' && (format as string) === 'GROUPS_THEN_KNOCKOUT')
+                          ? 'border-amber-500 bg-amber-50/50 text-neutral-950 shadow-xs ring-1 ring-amber-400/40'
+                          : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
                       }`}
                     >
-                      <p className="font-bold text-xs text-neutral-900">{f.title}</p>
-                      <p className="text-[11px] text-neutral-500 mt-0.5">{f.desc}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-xs text-neutral-900">{f.title}</p>
+                        {(format === f.id || (f.id === 'GROUPS_KNOCKOUT' && (format as string) === 'GROUPS_THEN_KNOCKOUT')) && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500 text-neutral-950">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-neutral-500 mt-1 leading-normal">{f.desc}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2">
-                <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider block">
-                  Scoring Configuration
-                </span>
-                <p className="text-neutral-600">
-                  {sport === 'TABLE_TENNIS' && 'Matches: Best of 5 Games (11 points per game, deuce win by 2, 2-serve rotation).'}
-                  {sport === 'BADMINTON' && 'Matches: Best of 3 Games (21 points rally scoring, deuce win by 2, max 30).'}
-                  {sport === 'FOOTBALL' && 'Matches: 2 Halves of 45 mins + Stoppage Time + Penalties if tied in knockout.'}
-                  {sport === 'CRICKET' && 'Matches: T20 Format (20 overs per innings, powerplay, max 4 overs per bowler).'}
-                </p>
+              {/* STAGE-SPECIFIC "BEST OF" SCORING CONFIGURATION */}
+              <div className="p-4 bg-neutral-50/90 rounded-2xl border border-neutral-200/90 space-y-4">
+                <div className="flex items-center justify-between border-b border-neutral-200/70 pb-2">
+                  <div>
+                    <span className="text-xs font-bold text-neutral-900 block">
+                      Stage Match Length ("Best Of" Sets)
+                    </span>
+                    <span className="text-[11px] text-neutral-500">
+                      Configure set quotas for each tournament stage
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-neutral-200/70 text-neutral-700">
+                    {sport.replace('_', ' ')}
+                  </span>
+                </div>
+
+                {/* 1. Group Stage Best-of (if format includes groups) */}
+                {(format === 'GROUPS_KNOCKOUT' || (format as string) === 'GROUPS_THEN_KNOCKOUT' || format === 'ROUND_ROBIN') && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-neutral-800">
+                        {format === 'ROUND_ROBIN' ? 'League Match Length:' : 'Group Stage Match Length:'}
+                      </label>
+                      <span className="text-[11px] text-neutral-500">
+                        First to {Math.ceil(bestOfGroup / 2)} games wins
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {[3, 5, 7].map(num => (
+                        <button
+                          key={`group-${num}`}
+                          type="button"
+                          id={`btn-group-best-of-${num}`}
+                          onClick={() => setBestOfGroup(num)}
+                          className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all text-center ${
+                            bestOfGroup === num
+                              ? 'bg-amber-500 border-amber-500 text-neutral-950 shadow-xs'
+                              : 'bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+                          }`}
+                        >
+                          <div>Best of {num}</div>
+                          <div className={`text-[10px] font-normal ${bestOfGroup === num ? 'text-neutral-900' : 'text-neutral-400'}`}>
+                            {num === 3 ? 'Fast Pool Play' : num === 5 ? 'ITTF Standard' : 'Championship'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Knockout Stage Best-of (if format includes knockout) */}
+                {format !== 'ROUND_ROBIN' && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-neutral-800">
+                        Knockout Stage (Main Bracket) Length:
+                      </label>
+                      <span className="text-[11px] text-neutral-500">
+                        First to {Math.ceil(bestOfKnockout / 2)} games wins
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {[3, 5, 7].map(num => (
+                        <button
+                          key={`ko-${num}`}
+                          type="button"
+                          id={`btn-knockout-best-of-${num}`}
+                          onClick={() => setBestOfKnockout(num)}
+                          className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all text-center ${
+                            bestOfKnockout === num
+                              ? 'bg-amber-500 border-amber-500 text-neutral-950 shadow-xs'
+                              : 'bg-white border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+                          }`}
+                        >
+                          <div>Best of {num}</div>
+                          <div className={`text-[10px] font-normal ${bestOfKnockout === num ? 'text-neutral-900' : 'text-neutral-400'}`}>
+                            {num === 3 ? 'Fast Knockout' : num === 5 ? 'Standard Main Draw' : 'Extended Draw'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Championship Semi-Finals & Finals Extension */}
+                {format !== 'ROUND_ROBIN' && (
+                  <div className="p-3 bg-white rounded-xl border border-neutral-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-neutral-800">
+                        <input
+                          type="checkbox"
+                          id="checkbox-extend-finals"
+                          checked={extendFinals}
+                          onChange={(e) => setExtendFinals(e.target.checked)}
+                          className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400"
+                        />
+                        <span>Extend Semi-Finals & Finals Match Length</span>
+                      </label>
+                      <span className="text-[10px] font-medium text-neutral-500">
+                        {extendFinals ? `Best of ${bestOfFinal} for Medal Matches` : 'Same as Knockout'}
+                      </span>
+                    </div>
+
+                    {extendFinals && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[11px] text-neutral-500">Finals Format:</span>
+                        {[5, 7].map(num => (
+                          <button
+                            key={`final-${num}`}
+                            type="button"
+                            id={`btn-final-best-of-${num}`}
+                            onClick={() => setBestOfFinal(num)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold border transition-all ${
+                              bestOfFinal === num
+                                ? 'bg-neutral-900 border-neutral-900 text-white'
+                                : 'bg-neutral-100 border-neutral-200 text-neutral-700 hover:bg-neutral-200'
+                            }`}
+                          >
+                            Best of {num} (First to {Math.ceil(num / 2)})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Informative Summary Badge */}
+                <div className="p-2.5 bg-neutral-900 text-white rounded-xl text-xs flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap text-[11px]">
+                    <span className="font-bold text-amber-400">Rules Active:</span>
+                    {format !== 'KNOCKOUT' && (
+                      <span className="bg-neutral-800 px-2 py-0.5 rounded border border-neutral-700">
+                        Groups: <strong>Bo{bestOfGroup}</strong> (First to {Math.ceil(bestOfGroup / 2)})
+                      </span>
+                    )}
+                    {format !== 'ROUND_ROBIN' && (
+                      <span className="bg-neutral-800 px-2 py-0.5 rounded border border-neutral-700">
+                        Knockout: <strong>Bo{bestOfKnockout}</strong> (First to {Math.ceil(bestOfKnockout / 2)})
+                      </span>
+                    )}
+                    {format !== 'ROUND_ROBIN' && extendFinals && (
+                      <span className="bg-neutral-800 px-2 py-0.5 rounded border border-neutral-700 text-amber-300">
+                        Finals: <strong>Bo{bestOfFinal}</strong> (First to {Math.ceil(bestOfFinal / 2)})
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-neutral-400">
+                    {sport === 'TABLE_TENNIS' ? '11 pts, deuce +2' : sport === 'BADMINTON' ? '21 pts, deuce +2' : 'Standard'}
+                  </span>
+                </div>
               </div>
             </div>
           )}

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
-import { Header } from './components/layout/Header';
-import { Sidebar } from './components/layout/Sidebar';
+import { AppShell } from './components/layout/AppShell';
 import { GlobalSearchModal } from './components/layout/GlobalSearchModal';
 import { ClaimProfileModal } from './components/player/ClaimProfileModal';
 import { TournamentWizardModal } from './components/tournament/TournamentWizardModal';
+import { AuthScreen } from './components/auth/AuthScreen';
+import { Loader2 } from 'lucide-react';
 
 // Dashboards
 import { SuperAdminDashboard } from './components/dashboards/SuperAdminDashboard';
@@ -30,7 +31,7 @@ import { TvArenaView } from './components/views/TvArenaView';
 import { PublicPortalView } from './components/views/PublicPortalView';
 
 function SportOSApp() {
-  const { currentUser, setActiveTournamentId } = useApp();
+  const { authLoading, currentUser, setActiveTournamentId } = useApp();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isClaimOpen, setIsClaimOpen] = useState(false);
@@ -54,6 +55,21 @@ function SportOSApp() {
         onOpenLiveScore={() => setCurrentView('live_scoring')}
       />
     );
+  }
+
+  // If auth is verifying session on initial mount
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center text-white">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-500 mb-3" />
+        <p className="text-sm text-neutral-400">Authenticating session with SportOS Cloud...</p>
+      </div>
+    );
+  }
+
+  // If user is not authenticated, render AuthScreen
+  if (!currentUser) {
+    return <AuthScreen />;
   }
 
   const handleSelectEntity = (type: 'PLAYER' | 'TOURNAMENT' | 'MATCH', id: string) => {
@@ -178,26 +194,16 @@ function SportOSApp() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-100 flex flex-col font-sans text-neutral-900 antialiased selection:bg-amber-400 selection:text-neutral-950">
-      {/* Universal Top Header with Role Switcher */}
-      <Header
+    <>
+      <AppShell
+        currentView={currentView}
+        onNavigate={setCurrentView}
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenClaimModal={() => setIsClaimOpen(true)}
-        onNavigate={setCurrentView}
-      />
-
-      {/* Main App Workspace */}
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar
-          currentView={currentView}
-          onNavigate={setCurrentView}
-          onOpenWizard={() => setIsWizardOpen(true)}
-        />
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-          {renderMainContent()}
-        </main>
-      </div>
+        onOpenWizard={() => setIsWizardOpen(true)}
+      >
+        {renderMainContent()}
+      </AppShell>
 
       {/* Global Search Modal */}
       <GlobalSearchModal
@@ -217,7 +223,7 @@ function SportOSApp() {
         isOpen={isWizardOpen}
         onClose={() => setIsWizardOpen(false)}
       />
-    </div>
+    </>
   );
 }
 
