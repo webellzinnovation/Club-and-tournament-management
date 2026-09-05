@@ -136,7 +136,12 @@ export const TvArenaView: React.FC<TvArenaViewProps> = ({ onExit }) => {
                       )}
                       <div>
                         <h3 className="text-xl font-black text-white">{match.participant1Name}</h3>
-                        <p className="text-xs text-neutral-400">Games Won: {match.score?.data?.sets?.filter((s: any) => s.p1 > s.p2).length || 0}</p>
+                        <p className="text-xs text-neutral-400">
+                          Games Won:{' '}
+                          {(match.score?.sport === 'TABLE_TENNIS' || match.score?.sport === 'BADMINTON')
+                            ? match.score.data.sets.filter(s => s.p1 > s.p2).length
+                            : 0}
+                        </p>
                       </div>
                     </div>
                     <span className="text-5xl font-mono font-black text-amber-400">
@@ -154,11 +159,16 @@ export const TvArenaView: React.FC<TvArenaViewProps> = ({ onExit }) => {
                       )}
                       <div>
                         <h3 className="text-xl font-black text-white">{match.participant2Name}</h3>
-                        <p className="text-xs text-neutral-400">Games Won: {match.score?.data?.sets?.filter((s: any) => s.p2 > s.p1).length || 0}</p>
+                        <p className="text-xs text-neutral-400">
+                          Games Won:{' '}
+                          {(match.score?.sport === 'TABLE_TENNIS' || match.score?.sport === 'BADMINTON')
+                            ? match.score.data.sets.filter(s => s.p2 > s.p1).length
+                            : 0}
+                        </p>
                       </div>
                     </div>
                     <span className="text-5xl font-mono font-black text-amber-400">
-                      {match.score?.sport === 'TABLE_TENNIS' ? match.score.data.currentSetP2 : match.score?.sport === 'BADMINTON' ? match.score.data.currentSetP2 : match.score?.data?.team2Goals || 0}
+                      {match.score?.sport === 'TABLE_TENNIS' ? match.score.data.currentSetP2 : match.score?.sport === 'BADMINTON' ? match.score.data.currentSetP2 : match.score?.sport === 'FOOTBALL' ? match.score.data.team2Goals : 0}
                     </span>
                   </div>
                 </div>
@@ -183,7 +193,7 @@ export const TvArenaView: React.FC<TvArenaViewProps> = ({ onExit }) => {
                 <span>Ref: {match?.refereeName || 'Assigned'}</span>
                 {match?.score?.sport === 'TABLE_TENNIS' && match.score.data.sets.length > 0 && (
                   <span>
-                    Sets: {match.score.data.sets.map((s: any) => `${s.p1}-${s.p2}`).join(' | ')}
+                    Sets: {match.score.data.sets.map(s => `${s.p1}-${s.p2}`).join(' | ')}
                   </span>
                 )}
               </div>

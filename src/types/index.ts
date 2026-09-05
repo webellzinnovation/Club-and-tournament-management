@@ -109,6 +109,15 @@ export interface Organization {
   createdAt: string;
 }
 
+export interface OrganizationMembership {
+  id: string;
+  orgId: string;
+  userId: string;
+  roles: UserRole[];
+  status: 'ACTIVE' | 'INVITED' | 'SUSPENDED';
+  joinedAt: string;
+}
+
 export interface Club {
   id: string;
   orgId: string;
@@ -169,6 +178,7 @@ export interface MembershipPlan {
   price: number;
   currency: string;
   benefits: string[];
+  features?: string[];
   activeSubscribersCount: number;
 }
 
@@ -209,28 +219,81 @@ export interface Referee {
   status: 'AVAILABLE' | 'ASSIGNED' | 'OFFLINE';
 }
 
+export type TieBreakerCriterion = 
+  | 'POINTS' 
+  | 'HEAD_TO_HEAD' 
+  | 'SETS_DIFFERENCE' 
+  | 'POINTS_DIFFERENCE' 
+  | 'GOAL_DIFFERENCE' 
+  | 'GOALS_SCORED' 
+  | 'NET_RUN_RATE' 
+  | 'GAMES_DIFF';
+
 export interface SportRulesConfig {
   sport: SportType;
   // Table Tennis & Badminton
-  bestOfSets?: number; // 3, 5, 7
+  bestOfSets?: number; // 1, 3, 5, 7
   pointsPerGame?: number; // 11 for TT, 21 for Badminton
   winByMargin?: number; // 2
   maxPointCap?: number; // 30 for Badminton
+  timeoutsPerPlayer?: number; // e.g. 1
   // Football
   matchDurationMinutes?: number; // 90, 80, 60
   halfDurationMinutes?: number; // 45, 40, 30
+  stoppageTimeEnabled?: boolean;
   extraTimeEnabled?: boolean;
   penaltiesEnabled?: boolean;
   // Cricket
   overs?: number; // 10, 20, 50
-  ballsPerOver?: number;
+  ballsPerOver?: number; // 6
   powerplayOvers?: number;
   inningsCount?: number;
+  superOverEnabled?: boolean;
   // Standings & Points
   pointsForWin: number;
   pointsForDraw: number;
   pointsForLoss: number;
-  tieBreakerPriority: string[]; // e.g. ['MATCH_POINTS', 'HEAD_TO_HEAD', 'DIFFERENCE']
+  tieBreakerPriority: (TieBreakerCriterion | string)[];
+}
+
+export interface TournamentStage {
+  id: string;
+  eventId: string;
+  name: string; // e.g. "Group Stage", "Knockout Stage"
+  stageType: 'GROUP' | 'KNOCKOUT';
+  order: number;
+}
+
+export interface TournamentRound {
+  id: string;
+  stageId?: string;
+  eventId: string;
+  roundNumber: number;
+  name: string; // e.g. "Round of 16", "Quarter Finals", "Semi Finals", "Final"
+}
+
+export interface TournamentGroup {
+  id: string;
+  stageId?: string;
+  eventId: string;
+  name: string; // e.g. "Group A", "Group B"
+  participantIds: string[];
+}
+
+export interface Fixture {
+  id: string;
+  tournamentId: string;
+  eventId: string;
+  stageName: string;
+  roundNumber: number;
+  matchNumber: number;
+  groupName?: string;
+  participant1Id?: string;
+  participant2Id?: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  resourceId?: string;
+  status: MatchStatus;
 }
 
 export interface TournamentEvent {
@@ -410,6 +473,7 @@ export interface StandingRow {
   rank: number;
   participantId: string;
   displayName: string;
+  participantName?: string;
   clubName?: string;
   played: number;
   won: number;
@@ -418,9 +482,14 @@ export interface StandingRow {
   scoreFor: number;
   scoreAgainst: number;
   scoreDiff: number;
+  setsWon?: number;
+  setsLost?: number;
+  setDifference?: number;
   points: number;
   streak?: string;
 }
+
+export type AnnouncementPriority = 'NORMAL' | 'URGENT' | 'CRITICAL' | 'EMERGENCY';
 
 export interface Announcement {
   id: string;
@@ -431,7 +500,7 @@ export interface Announcement {
   authorName: string;
   audience: 'ALL' | 'PLAYERS' | 'COACHES' | 'REFEREES' | 'EVENT' | 'ROUND';
   eventId?: string;
-  priority: 'NORMAL' | 'URGENT' | 'CRITICAL';
+  priority: AnnouncementPriority;
   createdAt: string;
   isPublic: boolean;
 }
@@ -449,6 +518,68 @@ export interface WebNotification {
   isRead: boolean;
   createdAt: string;
   actionUrl?: string;
+}
+
+export interface MatchResult {
+  id: string;
+  matchId: string;
+  winnerId?: string;
+  loserId?: string;
+  isDraw?: boolean;
+  score: SportScoreData;
+  submittedByRefereeId?: string;
+  submittedAt: string;
+  verifiedByUserId?: string;
+  verifiedAt?: string;
+  isOfficial: boolean;
+}
+
+export interface Ranking {
+  id: string;
+  sport: SportType;
+  category: string;
+  playerId: string;
+  playerName: string;
+  clubName?: string;
+  rank: number;
+  points: number;
+  tournamentsPlayed: number;
+  updatedAt: string;
+}
+
+export interface CreateTournamentInput {
+  title: string;
+  type: TournamentType;
+  sport: SportType;
+  format?: TournamentFormat;
+  orgId: string;
+  clubId?: string;
+  startDate: string;
+  endDate: string;
+  venueName: string;
+  city: string;
+  bannerUrl?: string;
+  isPublic: boolean;
+  registrationOpen: boolean;
+  pointsTableConfig?: {
+    winnerPoints: number;
+    finalistPoints: number;
+    semiFinalPoints: number;
+    quarterFinalPoints: number;
+  };
+  events?: Partial<TournamentEvent>[];
+}
+
+export interface BroadcastAnnouncementInput {
+  title: string;
+  content?: string;
+  message?: string;
+  target?: 'ALL' | 'PLAYERS' | 'COACHES' | 'REFEREES' | 'EVENT' | 'ROUND';
+  audience?: 'ALL' | 'PLAYERS' | 'COACHES' | 'REFEREES' | 'EVENT' | 'ROUND';
+  priority?: AnnouncementPriority;
+  channels?: string[];
+  tournamentId?: string;
+  eventId?: string;
 }
 
 export interface AuditLog {

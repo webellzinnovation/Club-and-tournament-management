@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { Match } from '../../types';
 import {
   Trophy,
   Users,
@@ -74,7 +75,7 @@ export const DrawsView: React.FC<DrawsViewProps> = ({
                 : 'text-neutral-600 hover:text-neutral-900'
             }`}
           >
-            Group Stage Tables ({standings.length})
+            Group Stage Tables ({(standings || []).length})
           </button>
         </div>
       </div>
@@ -206,7 +207,7 @@ export const DrawsView: React.FC<DrawsViewProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100">
-                    {standings.map((s, idx) => {
+                    {(standings || []).map((s, idx) => {
                       const isQualified = s.rank <= 2;
                       return (
                         <tr
@@ -258,12 +259,15 @@ export const DrawsView: React.FC<DrawsViewProps> = ({
 
 // Subcomponent for Bracket Card
 const BracketCard: React.FC<{
-  match: any;
+  match: Match;
   isFinal?: boolean;
   onSelect: () => void;
 }> = ({ match, isFinal, onSelect }) => {
-  const p1SetsWon = match.score?.data?.sets?.filter((s: any) => s.p1 > s.p2).length || 0;
-  const p2SetsWon = match.score?.data?.sets?.filter((s: any) => s.p2 > s.p1).length || 0;
+  const sets = match.score?.sport === 'TABLE_TENNIS' || match.score?.sport === 'BADMINTON'
+    ? match.score.data.sets
+    : [];
+  const p1SetsWon = sets.filter(s => s.p1 > s.p2).length;
+  const p2SetsWon = sets.filter(s => s.p2 > s.p1).length;
 
   return (
     <div

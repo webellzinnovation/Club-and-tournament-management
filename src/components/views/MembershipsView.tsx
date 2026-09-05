@@ -46,7 +46,7 @@ export const MembershipsView: React.FC = () => {
               </div>
 
               <div className="mt-6 space-y-2.5 text-xs text-neutral-600">
-                {p.features.map((feat, idx) => (
+                {(p.benefits || p.features || []).map((feat, idx) => (
                   <div key={idx} className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>{feat}</span>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   UserAccount,
   UserRole,
@@ -7,6 +7,7 @@ import {
   Coach,
   Batch,
   AttendanceRecord,
+  AttendanceStatus,
   MembershipPlan,
   PaymentRecord,
   PlayerProfile,
@@ -21,7 +22,10 @@ import {
   AuditLog,
   SportType,
   TournamentFormat,
-  SportScoreData
+  SportScoreData,
+  StandingRow,
+  CreateTournamentInput,
+  BroadcastAnnouncementInput
 } from '../types';
 import {
   SEED_USERS,
@@ -79,6 +83,7 @@ interface AppContextType {
   addCoach: (coach: Omit<Coach, 'id'>) => void;
   addBatch: (batch: Omit<Batch, 'id'>) => void;
   recordAttendance: (batchId: string, date: string, records: AttendanceRecord['records']) => void;
+  markAttendance: (batchId: string, playerId: string, date: string, status: AttendanceStatus) => void;
   recordPayment: (payment: Omit<PaymentRecord, 'id' | 'receiptNumber'>) => void;
   addMembershipPlan: (plan: Omit<MembershipPlan, 'id' | 'activeSubscribersCount'>) => void;
 
@@ -91,7 +96,9 @@ interface AppContextType {
   matches: Match[];
   resources: CompetitionResource[];
   referees: Referee[];
+  standings: StandingRow[];
   addTournament: (tournament: Omit<Tournament, 'id' | 'slug' | 'eventsCount' | 'totalMatchesCount'>, events: Partial<TournamentEvent>[]) => Tournament;
+  createTournament: (data: CreateTournamentInput) => Tournament;
   generateDraw: (eventId: string, format: TournamentFormat) => void;
   assignMatch: (matchId: string, resourceId?: string, refereeId?: string, date?: string, time?: string) => { success: boolean; conflicts: SchedulingConflict[] };
   callPlayers: (matchId: string, leadMinutes?: number) => void;
@@ -104,6 +111,7 @@ interface AppContextType {
   notifications: WebNotification[];
   unreadNotificationsCount: number;
   createAnnouncement: (announcement: Omit<Announcement, 'id' | 'createdAt'>) => void;
+  broadcastAnnouncement: (data: BroadcastAnnouncementInput) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   addNotification: (notif: Omit<WebNotification, 'id' | 'createdAt' | 'isRead'>) => void;
@@ -193,7 +201,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const broadcastEvent = (type: string, payload: any) => {
+  const broadcastEvent = (type: string, payload: unknown) => {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
         const channel = new BroadcastChannel('sportos_live_bus');
@@ -207,7 +215,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const playNotificationSound = useCallback(() => {
     try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioContextClass();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
@@ -346,6 +355,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction('ATTENDANCE_MARKED', 'AttendanceRecord', newRecord.id, `Marked attendance for batch ${batchId} on ${date}`);
   }, [logAction]);
 
+  const markAttendance = useCallback((batchId: string, playerId: string, date: string, status: AttendanceStatus) => {
+    const player = players.find(p => p.id === playerId);
+    const playerName = player?.name || 'Player';
+    setAttendanceRecords(prev => {
+      const existingRecordIndex = prev.findIndex(r => r.batchId === batchId && r.date === date);
+      if (existingRecordIndex >= 0) {
+        const existing = prev[existingRecordIndex];
+        const studentIndex = existing.records.findIndex(rec => rec.playerId === playerId);
+        const updatedRecords = [...existing.records];
+        if (studentIndex >= 0) {
+          updatedRecords[studentIndex] = { ...updatedRecords[studentIndex], status };
+        } else {
+          updatedRecords.push({ playerId, playerName, status });
+        }
+        const updated = [...prev];
+        updated[existingRecordIndex] = { ...existing, records: updatedRecords };
+        return updated;
+      } else {
+        const newRec: AttendanceRecord = {
+          id: `att-${Date.now()}`,
+          batchId,
+          date,
+          records: [{ playerId, playerName, status }]
+        };
+        return [newRec, ...prev];
+      }
+    });
+  }, [players]);
+
   const recordPayment = useCallback((payment: Omit<PaymentRecord, 'id' | 'receiptNumber'>) => {
     const receiptNumber = `REC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const newPayment: PaymentRecord = {
@@ -409,6 +447,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction('TOURNAMENT_CREATED', 'Tournament', id, `Created ${tournamentData.sport} tournament: ${tournamentData.title} (${newTournament.type})`);
     return newTournament;
   }, [logAction]);
+
+  const createTournament = useCallback((data: CreateTournamentInput) => {
+    return addTournament(data, data.events || [
+      {
+        name: `${(data.sport || 'TABLE_TENNIS').replace(/_/g, ' ')} Open`,
+        sport: data.sport || 'TABLE_TENNIS',
+        format: data.format || 'GROUPS_KNOCKOUT',
+        category: 'Open',
+        rules: {
+          sport: data.sport || 'TABLE_TENNIS',
+          bestOfSets: 5,
+          pointsPerGame: 11,
+          winByMargin: 2,
+          pointsForWin: 2,
+          pointsForDraw: 0,
+          pointsForLoss: 0,
+          tieBreakerPriority: ['POINTS', 'GAMES_DIFF']
+        }
+      }
+    ]);
+  }, [addTournament]);
 
   const generateDraw = useCallback((eventId: string, format: TournamentFormat) => {
     const ev = events.find(e => e.id === eventId);
@@ -678,6 +737,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logAction('ANNOUNCEMENT_PUBLISHED', 'Announcement', newAnn.id, `Published announcement: "${newAnn.title}" for audience ${newAnn.audience}`);
   }, [addNotification, logAction]);
 
+  const broadcastAnnouncement = useCallback((data: BroadcastAnnouncementInput) => {
+    createAnnouncement({
+      title: data.title || 'Announcement',
+      message: data.content || data.message || '',
+      audience: data.target || data.audience || 'ALL',
+      priority: data.priority || 'NORMAL',
+      tournamentId: data.tournamentId
+    });
+  }, [createAnnouncement]);
+
   const markNotificationAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   }, []);
@@ -690,6 +759,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0];
   const unreadNotificationsCount = notifications.filter(n => !n.isRead).length;
   const schedulingConflicts = detectSchedulingConflicts(matches);
+  const standings = useMemo(() => {
+    return calculateStandings(participants, matches);
+  }, [participants, matches]);
 
   return (
     <AppContext.Provider
@@ -714,6 +786,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addCoach,
         addBatch,
         recordAttendance,
+        markAttendance,
         recordPayment,
         addMembershipPlan,
         tournaments,
@@ -724,7 +797,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         matches,
         resources,
         referees,
+        standings,
         addTournament,
+        createTournament,
         generateDraw,
         assignMatch,
         callPlayers,
@@ -735,6 +810,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifications,
         unreadNotificationsCount,
         createAnnouncement,
+        broadcastAnnouncement,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         addNotification,

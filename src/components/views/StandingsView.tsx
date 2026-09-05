@@ -39,7 +39,7 @@ export const StandingsView: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
-            {standings.map(s => {
+            {(standings || []).map(s => {
               const isQualified = s.rank <= 2;
               return (
                 <tr key={s.participantId} className={`hover:bg-neutral-50 ${isQualified ? 'bg-emerald-50/20' : ''}`}>

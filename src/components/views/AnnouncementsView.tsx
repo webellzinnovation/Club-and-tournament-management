@@ -101,14 +101,14 @@ export const AnnouncementsView: React.FC = () => {
               <label className="block font-semibold text-neutral-700 mb-1">Urgency Priority</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: 'NORMAL', label: 'Normal', color: 'border-neutral-300' },
-                  { id: 'URGENT', label: 'Urgent', color: 'border-amber-400 bg-amber-50/60' },
-                  { id: 'EMERGENCY', label: 'Emergency', color: 'border-rose-400 bg-rose-50/60' }
+                  { id: 'NORMAL' as const, label: 'Normal', color: 'border-neutral-300' },
+                  { id: 'URGENT' as const, label: 'Urgent', color: 'border-amber-400 bg-amber-50/60' },
+                  { id: 'EMERGENCY' as const, label: 'Emergency', color: 'border-rose-400 bg-rose-50/60' }
                 ].map(p => (
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => setPriority(p.id as any)}
+                    onClick={() => setPriority(p.id)}
                     className={`p-2 rounded-xl border text-center font-bold text-xs transition-all ${
                       priority === p.id
                         ? `${p.color} border-2 text-neutral-950 font-black`
@@ -125,7 +125,7 @@ export const AnnouncementsView: React.FC = () => {
               <label className="block font-semibold text-neutral-700 mb-1">Target Audience</label>
               <select
                 value={target}
-                onChange={(e) => setTarget(e.target.value as any)}
+                onChange={(e) => setTarget(e.target.value as 'ALL' | 'PLAYERS' | 'COACHES' | 'REFEREES')}
                 className="w-full p-2.5 border border-neutral-200 rounded-xl focus:outline-none bg-neutral-50 font-semibold"
               >
                 <option value="ALL">Everyone in Arena & App</option>

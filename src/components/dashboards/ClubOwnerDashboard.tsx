@@ -243,7 +243,7 @@ export const ClubOwnerDashboard: React.FC<ClubOwnerDashboardProps> = ({ onNaviga
                   <label className="block font-semibold text-neutral-700 mb-1">Playing Hand</label>
                   <select
                     value={newPlayerHand}
-                    onChange={(e) => setNewPlayerHand(e.target.value as any)}
+                    onChange={(e) => setNewPlayerHand(e.target.value as 'RIGHT' | 'LEFT')}
                     className="w-full px-2.5 py-2 border border-neutral-200 rounded-lg focus:outline-none"
                   >
                     <option value="RIGHT">Right Handed</option>

@@ -274,6 +274,7 @@ export const calculateStandings = (
       rank: 0,
       participantId: p.id,
       displayName: p.displayName,
+      participantName: p.displayName,
       clubName: p.clubName,
       played: 0,
       won: 0,
@@ -282,6 +283,9 @@ export const calculateStandings = (
       scoreFor: 0,
       scoreAgainst: 0,
       scoreDiff: 0,
+      setsWon: 0,
+      setsLost: 0,
+      setDifference: 0,
       points: 0
     });
   }
@@ -316,10 +320,16 @@ export const calculateStandings = (
     row1.scoreFor += s1;
     row1.scoreAgainst += s2;
     row1.scoreDiff = row1.scoreFor - row1.scoreAgainst;
+    row1.setsWon = row1.scoreFor;
+    row1.setsLost = row1.scoreAgainst;
+    row1.setDifference = row1.scoreDiff;
 
     row2.scoreFor += s2;
     row2.scoreAgainst += s1;
     row2.scoreDiff = row2.scoreFor - row2.scoreAgainst;
+    row2.setsWon = row2.scoreFor;
+    row2.setsLost = row2.scoreAgainst;
+    row2.setDifference = row2.scoreDiff;
 
     const winPoints = rules?.pointsForWin ?? 2;
     const drawPoints = rules?.pointsForDraw ?? 1;

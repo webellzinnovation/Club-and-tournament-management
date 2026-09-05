@@ -20,14 +20,15 @@ export const AttendanceView: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState('2026-09-05');
 
   const currentBatch = batches.find(b => b.id === selectedBatchId) || batches[0];
-  const batchPlayers = players.filter(p => currentBatch?.playerIds.includes(p.id));
+  const batchPlayers = players.filter(p => currentBatch?.playerIds?.includes(p.id));
 
   // Build current map of player status for this date & batch
   const getPlayerStatus = (playerId: string): AttendanceStatus => {
     const rec = attendanceRecords.find(
-      r => r.batchId === currentBatch?.id && r.playerId === playerId && r.date === selectedDate
+      r => r.batchId === currentBatch?.id && r.date === selectedDate
     );
-    return rec ? rec.status : 'PRESENT'; // Default present
+    const pRec = rec?.records?.find(item => item.playerId === playerId);
+    return pRec ? pRec.status : 'PRESENT'; // Default present
   };
 
   const handleStatusChange = (playerId: string, status: AttendanceStatus) => {

@@ -32,7 +32,7 @@ export const BatchesView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {batches.map(b => {
           const coach = coaches.find(c => c.id === b.coachId);
-          const enrolledPlayers = players.filter(p => b.playerIds.includes(p.id));
+          const enrolledPlayers = players.filter(p => b.playerIds?.includes(p.id));
 
           return (
             <div key={b.id} className="bg-white rounded-2xl border border-neutral-200/80 p-5 shadow-xs space-y-4">
@@ -43,7 +43,7 @@ export const BatchesView: React.FC = () => {
                     <Clock className="w-3.5 h-3.5 text-neutral-400" />
                     <span>{b.timing}</span>
                     <span>•</span>
-                    <span>{b.days.join(', ')}</span>
+                    <span>{(b.days || []).join(', ')}</span>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">

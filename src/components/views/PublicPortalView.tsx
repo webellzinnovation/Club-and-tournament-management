@@ -214,7 +214,7 @@ export const PublicPortalView: React.FC<PublicPortalViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-800">
-                  {standings.map(s => (
+                  {(standings || []).map(s => (
                     <tr key={s.participantId} className="hover:bg-neutral-900">
                       <td className="p-2.5 font-mono font-bold text-amber-400">#{s.rank}</td>
                       <td className="p-2.5 font-semibold text-white">{s.participantName}</td>

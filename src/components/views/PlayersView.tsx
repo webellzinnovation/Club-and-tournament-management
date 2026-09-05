@@ -168,7 +168,7 @@ export const PlayersView: React.FC<PlayersViewProps> = ({ onOpenClaimModal }) =>
             <div className="pt-3 flex items-center justify-between text-xs text-neutral-500">
               <span>{p.playingStyle || 'Offensive'} • {p.hand}</span>
               <span className="text-emerald-600 font-bold">
-                #{p.rankings.clubRank || 1} in Club
+                #{p.rankings?.clubRank || 1} in Club
               </span>
             </div>
           </div>
@@ -231,7 +231,7 @@ export const PlayersView: React.FC<PlayersViewProps> = ({ onOpenClaimModal }) =>
                   <label className="block font-semibold text-neutral-700 mb-1">Hand</label>
                   <select
                     value={hand}
-                    onChange={(e) => setHand(e.target.value as any)}
+                    onChange={(e) => setHand(e.target.value as 'RIGHT' | 'LEFT')}
                     className="w-full px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none"
                   >
                     <option value="RIGHT">Right Hand</option>
